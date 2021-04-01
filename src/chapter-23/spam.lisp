@@ -162,15 +162,16 @@
     (test-from-corpus shuffled :start train-on)))
 
 (defun test-from-corpus (corpus &key (start 0) end)
-  (labels ((test-corpus-instance (index)
-             (destructuring-bind (filepath type) (aref corpus index)
-               (multiple-value-bind (classification score)
-                   (classify (file-head filepath))
-                 (list
-                  :file filepath
-                  :type type
-                  :classification classification
-                  :score score)))))
+  (labels
+      ((test-corpus-instance (index)
+         (destructuring-bind (filepath type) (aref corpus index)
+           (multiple-value-bind (classification score)
+               (classify (file-head filepath))
+             (list
+              :file filepath
+              :type type
+              :classification classification
+              :score score)))))
     (loop for index from start below (or end (length corpus))
           collect (test-corpus-instance index))))
 

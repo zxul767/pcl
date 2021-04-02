@@ -39,7 +39,7 @@ Example:
 ;; + document
 (defmacro once-only ((&rest names) &body body)
   (let ((symbols (loop for n in names collect (gensym))))
-    `(let (,@ (loop for s in symbols collect `(,s (gensym))))
-       `(let (,,@ (loop for s in symbols for n in names collect ``(,,s ,,n)))
-          ,(let (,@ (loop for n in names for s in symbols collect `(,n ,s)))
+    `(let (,@(loop for s in symbols collect `(,s (gensym))))
+       `(let (,,@(loop for s in symbols for n in names collect ``(,,s ,,n)))
+          ,(let (,@(loop for n in names for s in symbols collect `(,n ,s)))
              ,@body)))))

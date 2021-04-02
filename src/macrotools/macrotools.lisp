@@ -55,7 +55,7 @@ Example:
 
 When used within a macro (as it is intended):
 (defmacro test (n)
-  (evaluated-once (n)
+  (once-only (n)
     `(fibonacci ,n (1- ,n))))
 
 the final expansion would be:
@@ -81,5 +81,5 @@ the final expansion would be:
 ;;
 ;; the version above is an alternative--and IMO simpler--definition, as it avoids
 ;; one nesting level by taking advantage of the fact that (let ((n <expr>) (g n)) ...)
-;; is a perfectly valid way to use the current value of `n' while rebinding it to
-;; another value in "parallel"
+;; rebinds `n' to a new value, but also binds `g' to the previous value of `n' at
+;; the same time (think of it as `psetf')

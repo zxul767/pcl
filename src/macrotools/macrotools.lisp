@@ -59,7 +59,7 @@ When used within a macro (as it is intended):
     `(fibonacci ,n (1- ,n))))
 
 the final expansion would be:
-(macroexpand-1 '(fibonacci (+ 1 2)))
+(macroexpand-1 '(test (+ 1 2)))
 =>
 (LET ((#:N557 (+ 1 2)))
    (FIBONACCI #:N557 (1- #:N557)))

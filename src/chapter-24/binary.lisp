@@ -10,7 +10,6 @@
   (:method-combination progn :most-specific-last)
   (:documentation "Fill in the slots of object from stream."))
 
-
 (defgeneric write-object (object stream)
   (:method-combination progn :most-specific-last)
   (:documentation "Write out the slots of object from stream."))
@@ -34,7 +33,8 @@
   (let ((*in-progress-objects* (cons object *in-progress-objects*)))
     (call-next-method)))
 
-(defun current-binary-object () (first *in-progress-objects*))
+(defun current-binary-object ()
+  (first *in-progress-objects*))
 
 (defun parent-of-type (type)
   (find-if #'(lambda (x) (typep x type)) *in-progress-objects*))
@@ -50,50 +50,17 @@
 (defmethod write-value ((type symbol) stream value &key)
   (assert (typep value type))
   (write-object value stream))
-;; -----------------------------------------------------------------------------
-;; Macro Helper Functions
-;; -----------------------------------------------------------------------------
-(defun slot->defclass-slot (spec)
-  (let ((name (first spec)))
-    `(,name :initarg ,(as-keyword name) :accessor ,name)))
 
+;; -----------------------------------------------------------------------------
+;; General Helper Functions
+;; -----------------------------------------------------------------------------
 (defun as-keyword (symbol) (intern (string symbol) :keyword))
-
-(defun slot->read-value-expression (spec stream)
-  (destructuring-bind (name (type &rest args)) (normalize-slot-spec spec)
-    `(setf ,name (read-value ',type ,stream ,@args))))
-
-(defun slot->write-value-expression (spec stream)
-  (destructuring-bind (name (type &rest args)) (normalize-slot-spec spec)
-    `(write-value ',type ,stream ,name ,@args)))
 
 (defun normalize-slot-spec (spec)
   (list (first spec) (ensure-list (second spec))))
 
 (defun ensure-list (x)
   (if (listp x) x (list x)))
-
-(defun direct-slots (class-name)
-  (copy-list (get class-name 'slots)))
-
-(defun inherited-slots (class-name)
-  (loop for super in (get class-name 'superclasses)
-        nconc (direct-slots super)
-        nconc (inherited-slots super)))
-
-(defun all-slots (class-name)
-  (nconc (direct-slots class-name) (inherited-slots class-name)))
-
-(defun new-class-all-slots (slots superclasses)
-  (nconc (mapcan #'all-slots superclasses) (mapcar #'first slots)))
-
-(defun slot->binding (spec stream)
-  (destructuring-bind (name (type &rest args)) (normalize-slot-spec spec)
-    `(,name (read-value ',type ,stream ,@args))))
-
-(defun slot->keyword-arg (spec)
-  (let ((name (first spec)))
-    `(,(as-keyword name) ,name)))
 
 ;; -----------------------------------------------------------------------------
 ;; General Utility Macros
@@ -104,35 +71,58 @@
      (if ,var (progn ,@body) ,error)))
 
 ;; -----------------------------------------------------------------------------
-;; Binary Data Structure Definition Macros
+;; Binary Data Structures Definition Macros
 ;; -----------------------------------------------------------------------------
-
-;; NOTE: all macros intended to be called by users have `slots' as the last argument
-;; this macro is not really meant to be used by users, so it is allowed to break
-;; that convention
+;; NOTE: all macros intended to be called by users have `slots' as the last
+;; argument, but this macro is not really meant to be used by users, so it is
+;; allowed to break that convention
 (defmacro define-generic-binary-class (name (&rest superclasses) slots &body read-method)
-  (with-gensyms ((objectvar "object") (streamvar "stream"))
+  (with-gensyms (object stream)
     `(progn
        (eval-when (:compile-toplevel :load-toplevel :execute)
          (setf (get ',name 'slots) ',(mapcar #'first slots))
          (setf (get ',name 'superclasses) ',superclasses))
 
        (defclass ,name ,superclasses
-         ,(mapcar #'slot->defclass-slot slots))
+         ,(generate-defclass-slots slots))
 
        ,@read-method
 
-       (defmethod write-object progn ((,objectvar ,name) ,streamvar)
-         (with-slots ,(new-class-all-slots slots superclasses) ,objectvar
-           ,@(mapcar #'(lambda (s) (slot->write-value-expression s streamvar)) slots))))))
+       (defmethod write-object progn ((,object ,name) ,stream)
+         (with-slots ,(new-class-all-slots slots superclasses) ,object
+           ,@(generate-write-slots-statements slots stream))))))
 
+(defun generate-defclass-slots (slots)
+  (flet ((slot->defclass-slot (spec)
+           (let ((name (first spec)))
+             `(,name :initarg ,(as-keyword name) :accessor ,name))))
+    (mapcar #'slot->defclass-slot slots)))
 
-(defmacro define-binary-class (name (&rest superclasses) &body slots)
-  (with-gensyms ((objectvar "object") (streamvar "stream"))
-    `(define-generic-binary-class ,name ,superclasses ,slots
-       (defmethod read-object progn ((,objectvar ,name) ,streamvar)
-         (with-slots ,(new-class-all-slots slots superclasses) ,objectvar
-           ,@(mapcar #'(lambda (s) (slot->read-value-expression s streamvar)) slots))))))
+(defun generate-write-slots-statements (slots stream)
+  (flet ((slot->write-value-statement (spec stream)
+           (destructuring-bind (name (type &rest args)) (normalize-slot-spec spec)
+             `(write-value ',type ,stream ,name ,@args))))
+    (mapcar #'(lambda (s) (slot->write-value-statement s stream)) slots)))
+
+(defun direct-slots (class-symbol)
+  (copy-list (get class-symbol 'slots)))
+
+(defun inherited-slots (class-symbol)
+  (loop for super in (get class-symbol 'superclasses)
+        nconc (direct-slots super)
+        nconc (inherited-slots super)))
+
+(defun all-slots (class-symbol)
+  (nconc (direct-slots class-symbol) (inherited-slots class-symbol)))
+
+;; this function is necessary because calling (all-slots <class-X>) when we're
+;; compiling <class-X> will result in an empty list since the symbol <class-X>
+;; has not yet been processed and thus has no slots or superclasses information
+;; (it will after the expansion for <class-X> is compiled/loaded at top-level)
+(defun new-class-all-slots (slots superclasses)
+  (nconc (mapcan #'all-slots superclasses) (mapcar #'first slots)))
+
+;; -----------------------------------------------------------------------------
 ;; Usage:
 ;; (define-binary-class frame ()
 ;;   (id (iso-8859-1-string :length 3))
@@ -140,23 +130,67 @@
 ;;
 ;; (define-binary-class generic-frame (frame)
 ;;   (data (raw-bytes :bytes size)))
+(defmacro define-binary-class (name (&rest superclasses) &body slots)
+  (with-gensyms (object stream)
+    `(define-generic-binary-class ,name ,superclasses ,slots
+       (defmethod read-object progn ((,object ,name) ,stream)
+         (with-slots ,(new-class-all-slots slots superclasses) ,object
+           ,@(generate-read-slots-statements slots stream))))))
 
-(defmacro define-tagged-binary-class (name (&rest superclasses) (&rest options) &body slots)
-  (let-guard (class-resolver (second (assoc :class-resolver options)))
-             (error ":class-resolver option is mandatory!")
-    (with-gensyms ((typevar "type") (objectvar "object") (streamvar "stream"))
-      `(define-generic-binary-class ,name ,superclasses ,slots
-         (defmethod read-value ((,typevar (eql ',name)) ,streamvar &key)
-           (let* ,(mapcar #'(lambda (s) (slot->binding s streamvar)) slots)
-             (let ((,objectvar (make-instance ,class-resolver ,@(mapcan #'slot->keyword-arg slots))))
-               (read-object ,objectvar ,streamvar)
-               ,objectvar)))))))
+(defun generate-read-slots-statements (slots stream)
+  (flet ((slot->read-value-expression (spec stream)
+           (destructuring-bind (name (type &rest args)) (normalize-slot-spec spec)
+             `(setf ,name (read-value ',type ,stream ,@args)))))
+    (mapcar #'(lambda (s) (slot->read-value-expression s stream)) slots)))
+
+;; -----------------------------------------------------------------------------
 ;; Usage:
 ;; (define-tagged-binary-class id3-frame ()
-;;     ((:class-resolver (find-frame-class id)))
+;;     ((:class-name-finder (find-frame-class id)))
 ;;   (id (iso-8859-1-string :length 3))
 ;;   (size u3))
+;;
+;; A tagged binary class is a structure that has generic data in the first few
+;; fields (with a mandatory ID field) but whose remaining structure depends on
+;; the value of the ID found, so a mechanism to build the correct binary class
+;; and dispatch the reading of its corresponding fields is required, hence the
+;; :class-name-finder argument.
+(defmacro define-tagged-binary-class (name (&rest superclasses) (&rest options) &body slots)
+  (let-guard (class-name-finder (second (assoc :class-name-finder options)))
+             (error ":class-name-finder option is mandatory!")
+    (with-gensyms (type object stream)
+      `(define-generic-binary-class ,name ,superclasses ,slots
+         (defmethod read-value ((,type (eql ',name)) ,stream &key)
+           (let* ,(generate-slot-read-bindings slots stream)
+             (let ((,object (make-instance ,class-name-finder ,@(generate-slot-keywords slots))))
+               (read-object ,object ,stream)
+               ,object)))))))
 
+(defun generate-slot-read-bindings (slots stream)
+  (flet ((slot->binding (spec stream)
+           (destructuring-bind (name (type &rest args)) (normalize-slot-spec spec)
+             `(,name (read-value ',type ,stream ,@args)))))
+    (mapcar #'(lambda (s) (slot->binding s stream)) slots)))
+
+(defun generate-slot-keywords (slots)
+  (flet ((slot->keyword-arg (spec)
+           (let ((name (first spec)))
+             `(,(as-keyword name) ,name))))
+    (mapcan #'slot->keyword-arg slots)))
+
+;; -----------------------------------------------------------------------------
+;; Usage:
+;; (define-binary-type iso-8859-1-string (length)
+;;   (:reader (in)
+;;            (let ((string (make-string length)))
+;;              (dotimes (i length)
+;;                (setf (char string i) (code-char (read-byte in))))
+;;              string))
+;;   (:writer (out string)
+;;            (dotimes (i length)
+;;              (write-byte (char-code (char string i)) out))))
+;;
+;; (define-binary-type u1 () (unsigned-integer :bytes 1))
 (defmacro define-binary-type (name (&rest args) &body spec)
   (ecase (length spec)
     (1
@@ -176,15 +210,3 @@
           ,(destructuring-bind ((out value) &body body) (rest (assoc :writer spec))
              `(defmethod write-value ((,type (eql ',name)) ,out ,value &key ,@args)
                 ,@body)))))))
-;; Usage:
-;; (define-binary-type iso-8859-1-string (length)
-;;   (:reader (in)
-;;            (let ((string (make-string length)))
-;;              (dotimes (i length)
-;;                (setf (char string i) (code-char (read-byte in))))
-;;              string))
-;;   (:writer (out string)
-;;            (dotimes (i length)
-;;              (write-byte (char-code (char string i)) out))))
-;;
-;; (define-binary-type u1 () (unsigned-integer :bytes 1))

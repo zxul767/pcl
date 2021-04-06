@@ -84,33 +84,41 @@
                        &key
                          recursively
                          include-directories
-                         (condition (constantly t)))
+                         (file-condition (constantly t))
+                         (directory-condition (constantly t)))
   "Traverse directory `dirname', invoking `callback' on each file.
 On each call to `callback' a canonical pathname is passed back.
-By default, all files (and possibly directories) are considered but `condition'
-can be used to limit which files are actually passed back via `callback'.
-By default, only top-level files are visited but `recursively' can change that.
-By default, only files are visited but `include-directories' can change that.
 
-Example: traverse the `src' directory recursively, printing each file and
+By default, all files (and possibly directories) are considered but
+`file-condition' can be used to limit which files are actually passed to `callback'.
+
+By default, only top-level files are visited but `recursively' can change that;
+when this option is used, `directory-condition' can be used to limit which
+directories are (also recursively) traversed.
+
+By default, only files are passed back to `callback' but `include-directories'
+can change that.
+
+Example: traverse the `~/src' directory recursively, printing each file and
 directory underneath it, excluding hidden files.
 
 (walk-directory \"~/src\" #'print
                 :recursively t
                 :include-directories t
-                :condition #'is-not-hidden-file)
-
-Notice that if `is-not-hidden-file' returns `nil' for directories (e.g., `.git'),
-then files underneath them won't be visited, even if they would pass `condition'"
+                :file-condition #'is-python-file
+                :directory-condition (complement #'is-node-modules-directory))
+"
   (labels
       ((visit (pathname)
-         (if (funcall condition pathname)
+         (if (funcall file-condition pathname)
              (funcall callback pathname)))
        (walk (dirpath)
          (if include-directories
              (visit dirpath))
          (dolist (pathname (list-directory dirpath))
-           (if (and recursively (directory-p pathname) (funcall condition pathname))
+           (if (and recursively
+                    (directory-p pathname)
+                    (funcall directory-condition pathname))
                (walk pathname)
                (visit pathname)))))
     (walk (as-directory-pathname dirname))))

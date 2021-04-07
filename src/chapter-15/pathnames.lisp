@@ -82,45 +82,52 @@
 
 (defun walk-directory (dirname callback
                        &key
-                         recursively
-                         include-directories
+                         (recursively nil)
+                         (report-directories nil)
                          (file-condition (constantly t))
                          (directory-condition (constantly t)))
   "Traverse directory `dirname', invoking `callback' on each file.
 On each call to `callback' a canonical pathname is passed back.
 
-By default, all files (and possibly directories) are considered but
-`file-condition' can be used to limit which files are actually passed to `callback'.
+By default, all top-level files are considered but `file-condition' can be used
+to limit which files are actually passed to `callback'.
 
-By default, only top-level files are visited but `recursively' can change that;
-when this option is used, `directory-condition' can be used to limit which
-directories are (also recursively) traversed.
+By default, only top-level files and directories are reported but `recursively'
+can change that; when this option is used, `directory-condition' can be used to
+limit which directories are (also recursively) traversed.
 
-By default, only files are passed back to `callback' but `include-directories'
+By default, only files are passed back to `callback' but `report-directories'
 can change that.
 
-Example: traverse the `~/src' directory recursively, printing each file and
-directory underneath it, excluding hidden files.
+Example: traverse the `~/src' directory recursively, printing each Python file
+and directory underneath it, excluding everything under the `node_modules'
+directory.
 
 (walk-directory \"~/src\" #'print
                 :recursively t
-                :include-directories t
+                :report-directories t
                 :file-condition #'is-python-file
-                :directory-condition (complement #'is-node-modules-directory))
-"
+                :directory-condition (fn-not is-node-modules-directory))"
   (labels
-      ((visit (pathname)
+      ((report-unconditionally (pathname)
+         (funcall callback pathname))
+       (report (pathname)
          (if (funcall file-condition pathname)
-             (funcall callback pathname)))
+             (report-unconditionally pathname)))
        (walk (dirpath)
-         (if include-directories
-             (visit dirpath))
-         (dolist (pathname (list-directory dirpath))
-           (if (and recursively
-                    (directory-p pathname)
-                    (funcall directory-condition pathname))
-               (walk pathname)
-               (visit pathname)))))
+         (when (funcall directory-condition dirpath)
+           (if report-directories
+               (report-unconditionally dirpath))
+           (dolist (pathname (list-directory dirpath))
+             ;; In this implementation, we can see why it is not a good idea to
+             ;; conflate the listing of files and directories in a single function
+             ;; as `list-directory' does; without such separation, this inner loop
+             ;; is hopelessly inefficient, having to ask on each iteration whether
+             ;; we're dealing with a file or a directory
+             (if (file-p pathname)
+                 (report pathname)
+                 (if recursively ;; pathname is a directory
+                     (walk pathname)))))))
     (walk (as-directory-pathname dirname))))
 
 (defun file-p (name)

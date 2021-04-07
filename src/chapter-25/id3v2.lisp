@@ -6,8 +6,8 @@
 (define-binary-type unsigned-integer (bytes bits-per-byte)
   (:reader (in)
            (loop with value = 0
-                 for low-bit downfrom (* bits-per-byte (1- bytes)) to 0 by bits-per-byte do
-                   (setf (ldb (byte bits-per-byte low-bit) value) (read-byte in))
+                 for low-bit downfrom (* bits-per-byte (1- bytes)) to 0 by bits-per-byte
+                 do (setf (ldb (byte bits-per-byte low-bit) value) (read-byte in))
                  finally (return value)))
   (:writer (out value)
            (loop for low-bit downfrom (* bits-per-byte (1- bytes)) to 0 by bits-per-byte
@@ -120,7 +120,8 @@
   (major-version u1)
   (revision u1)
   (flags u1)
-  (size id3-tag-size))
+  (size id3-tag-size)
+  (frames (id3-frames :tag-size size)))
 
 (defun read-id3 (file)
   (with-open-file (in file :element-type '(unsigned-byte 8))
@@ -158,3 +159,47 @@
 (defun id3-p (file)
   (with-open-file (in file :element-type '(unsigned-byte 8))
     (string= "ID3" (read-value 'iso-8859-1-string in :length 3))))
+
+(define-tagged-binary-class id3-frame ()
+    ((:class-finder (find-frame-class id)))
+  (id (iso-8859-1-string :length 3))
+  (size u3))
+
+(define-binary-type raw-bytes (size)
+  (:reader (in)
+           (let ((buffer (make-array size :element-type '(unsigned-byte 8))))
+             (read-sequence buffer in)
+             buffer))
+  (:writer (out buffer)
+           (write-sequence buffer out)))
+
+(define-binary-class generic-frame (id3-frame)
+  (data (raw-bytes :size size)))
+
+(defun find-frame-class (id)
+  (declare (ignore id))
+  'generic-frame)
+
+(define-binary-type id3-frames (tag-size)
+  (:reader (in)
+           (loop with to-read = tag-size
+                 while (plusp to-read)
+                 for frame = (read-frame in)
+                 while frame
+                 do (decf to-read (+ (frame-header-size frame) (size frame)))
+                 collect frame
+                 ;; skip over null padding
+                 finally (loop repeat (1- to-read) do (read-byte in))))
+  (:writer (out frames)
+           (loop with to-write = tag-size
+                 for frame in frames
+                 do (write-value 'id3-frame out frame)
+                    (decf to-write (+ (frame-header-size frame) (size frame)))
+                 ;; write null padding if necessary
+                 finally (loop repeat to-write do (write-byte 0 out)))))
+
+(defun frame-header-size (frame)
+  (declare (ignore frame))
+  6)
+
+(defun read-frame (frame))

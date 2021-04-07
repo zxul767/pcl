@@ -68,9 +68,10 @@ stack) currently being read/written."
 ;; -----------------------------------------------------------------------------
 (defun as-keyword (symbol) (intern (string symbol) :keyword))
 
-(defun assert-all (predicate sequence)
-  (dolist (item sequence)
-    (assert (funcall predicate item))))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun assert-all (predicate sequence)
+    (dolist (item sequence)
+      (assert (funcall predicate item)))))
 
 ;; (id (iso-8859-1-string :length 3)) => (id (iso-8859-1-string :length 3))
 ;; (size u3))                         => (size (u3))

@@ -4,6 +4,8 @@
 (defvar *bom-big-endian* #xfeff)
 (defvar *bom-little-endian* #xfffe)
 
+(defparameter *silence-errors* nil)
+
 ;; -----------------------------------------------------------------------------
 ;; General Utilities & Macros
 ;; -----------------------------------------------------------------------------
@@ -265,24 +267,26 @@
   (handler-case (read-value frame-type in)
     (in-padding () nil)))
 
+(defun show-error (message &rest args)
+  (prog-nil
+    (unless *silence-errors*
+      (format t "ERROR: ~a~%" (apply #'format nil message args)))))
+
 (defun read-id3 (filepath)
   "Return the ID3 of `filepath' or `nil' if there was an error during parsing."
   (let ((shortpath (enough-namestring filepath)))
     (with-open-file (in filepath :element-type '(unsigned-byte 8))
       (handler-case (read-value 'id3-tag in)
         (missing-id3-tag ()
-          (prog-nil
-           (format t "ERROR: missing ID3 tag (maybe it is IDv1?): ~a~%" shortpath)))
+          (show-error "missing ID3 tag (maybe it is IDv1?): ~a" shortpath))
         (data-too-large (condition)
-          (prog-nil
-            (format t "ERROR: raw data too large (~a -- ~a) (unsupported ID3 version?) -- skipping~%"
-                    shortpath
-                    (human-readable-size (size condition)))))
+          (show-error "raw data too large (~a -- ~a) (unsupported ID3 version?) -- skipping~"
+                      shortpath
+                      (human-readable-size (size condition))))
         (unsupported-version (condition)
-          (prog-nil
-            (format t "ERROR: unsupported major version (~a): ~a~%" (major-version condition) shortpath)))
+          (show-error "unsupported major version (~a): ~a" (major-version condition) shortpath))
         (error (condition)
-          (prog-nil (format t "ERROR: failed to process ~a: ~a~%" shortpath condition)))))))
+          (show-error "failed to process ~a: ~a" shortpath condition))))))
 
 (defun show-tag-headers (directory)
   "Show the ID3 tag header for all mp3 files under `directory'"

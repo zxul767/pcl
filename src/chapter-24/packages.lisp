@@ -8,7 +8,7 @@
    :define-binary-type
    :read-value
    :write-value
-   :*in-progress-objects*
-   :parent-of-type
-   :current-binary-object
+   :*binary-objects-processing-stack*
+   :first-ancestor-in-processing-stack-by-type
+   :first-object-in-processing-stack
    :+null+))

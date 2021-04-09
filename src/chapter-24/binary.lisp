@@ -2,7 +2,6 @@
 
 (defconstant +null+ (code-char 0))
 
-
 ;; -----------------------------------------------------------------------------
 ;; Interfaces
 ;; -----------------------------------------------------------------------------
@@ -43,10 +42,10 @@
           (cons object *binary-objects-processing-stack*)))
     (call-next-method)))
 
-(defun first-in-processing-stack ()
+(defun first-object-in-processing-stack ()
   (first *binary-objects-processing-stack*))
 
-(defun first-ancestor-in-processing-stack-of-type (type)
+(defun first-ancestor-in-processing-stack-by-type (type)
   "Return the first object of type `type' (excluding the first one in the processing
 stack) currently being read/written."
   (find-if #'(lambda (x) (typep x type)) (rest *binary-objects-processing-stack*)))
@@ -215,6 +214,7 @@ stack) currently being read/written."
 ;; -----------------------------------------------------------------------------
 (defmacro define-binary-type (name (&rest args) &body spec)
   (ecase (length spec)
+    ;; derived from an existing type
     (1
      (with-gensyms (type stream value)
        (destructuring-bind (derived-from &rest derived-args) (ensure-list (first spec))
@@ -223,6 +223,7 @@ stack) currently being read/written."
               (read-value ',derived-from ,stream ,@derived-args))
             (defmethod write-value ((,type (eql ',name)) ,stream ,value &key ,@args)
               (write-value ',derived-from ,stream ,value ,@derived-args))))))
+    ;; specified with :reader and :writer methods
     (2
      (with-gensyms (type)
        `(progn

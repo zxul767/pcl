@@ -20,6 +20,10 @@
      ,@body
      ,result))
 
+(defmacro sort! (sequence predicate &rest args)
+  (assert (symbolp sequence))
+  `(setf ,sequence (sort ,sequence ,predicate ,@args)))
+
 ;; -----------------------------------------------------------------------------
 ;; Primitive Types
 ;; -----------------------------------------------------------------------------
@@ -165,7 +169,11 @@
 (define-tagged-binary-class id3-tag ()
     ((:class-finder (ecase major-version
                       (2 'id3v2.2-tag)
-                      (3 'id3v2.3-tag))))
+                      (3 'id3v2.3-tag)
+                      ;; We don't really support v2.4 yet, but we'll try to read
+                      ;; generic frames anyway to at least get statistical information
+                      ;; on common frames in our mp3s dataset
+                      (4 'id3v2.3-tag))))
   (identifier (iso-8859-1-string :length 3))
   (major-version u1)
   (revision u1)
@@ -279,6 +287,9 @@
 (defun frame-id (plist)
   (getf plist :id))
 
+(defun frame-version (plist)
+  (getf plist :version))
+
 (defun frame-types (filepath)
   (let-when (id3 (read-id3 filepath))
     (delete-duplicates
@@ -287,14 +298,17 @@
      :key #'frame-id
      :test #'string=)))
 
-(defun frame-types-in-directory (directory)
+(defun frame-types-in-directory (directory &key sort-by)
   (with-result-in (ids)
     (flet
         ((collect (filepath)
            (setf ids (nunion ids (frame-types filepath) :key #'frame-id :test #'string=))))
       (walk-directory directory #'collect
                       :recursively t
-                      :file-condition (fn-and mp3-p id3-p)))))
+                      :file-condition (fn-and mp3-p id3-p)))
+    (case sort-by
+      (id      (sort! ids #'string< :key #'frame-id))
+      (version (sort! ids #'< :key #'frame-version)))))
 
 ;; -----------------------------------------------------------------------------
 ;; ID3 V2.2

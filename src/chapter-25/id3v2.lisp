@@ -24,6 +24,19 @@
   (assert (symbolp sequence))
   `(setf ,sequence (sort ,sequence ,predicate ,@args)))
 
+(defmacro prog-nil (&body body)
+  `(progn ,@body nil))
+
+(defun human-readable-size (size-in-bytes)
+  (with-output-to-string (stream)
+    (format stream "~,3f MB" (bytes->megabytes size-in-bytes))))
+
+(defun bytes->megabytes (bytes)
+  (/ bytes (* 1024.0 1024.0)))
+
+(defun megabytes->bytes (megabytes)
+  (round (* megabytes 1024 1024)))
+
 ;; -----------------------------------------------------------------------------
 ;; Primitive Types
 ;; -----------------------------------------------------------------------------
@@ -128,12 +141,15 @@
                          :terminator terminator
                          :character-type (ucs-2-char-type *bom-big-endian*))))
 
-(define-binary-type raw-bytes (size)
+(define-binary-type raw-bytes (size max-size)
   (:reader (in)
+           (if (> size max-size)
+               (error 'data-too-large :size size :max-size max-size))
            (with-result-in (buffer (make-array size :element-type '(unsigned-byte 8)))
              (read-sequence buffer in)))
   (:writer (out buffer)
-           (assert (eql size (length buffer)))
+           (assert (= size (length buffer)))
+           (assert (< size max-size))
            (write-sequence buffer out)))
 
 (defun ucs-2-char-type (byte-order-mark)
@@ -155,6 +171,15 @@
 ;; and the condition system to deal with this.
 (define-condition in-padding () ())
 
+(define-condition missing-id3-tag (error) ())
+
+(define-condition data-too-large (error)
+  ((size :initarg :size :reader size)
+   (max-size :initarg :max-size :reader max-size)))
+
+(define-condition unsupported-version (error)
+  ((major-version :initarg :major-version :reader major-version)))
+
 (defgeneric frame-header-size (frame))
 
 (define-binary-type id3-tag-size ()
@@ -167,18 +192,23 @@
            (when if (write-value type out value))))
 
 (define-tagged-binary-class id3-tag ()
-    ((:class-finder (ecase major-version
+    ((:class-finder (case major-version
                       (2 'id3v2.2-tag)
                       (3 'id3v2.3-tag)
-                      ;; We don't really support v2.4 yet, but we'll try to read
-                      ;; generic frames anyway to at least get statistical information
-                      ;; on common frames in our mp3s dataset
-                      (4 'id3v2.3-tag))))
-  (identifier (iso-8859-1-string :length 3))
+                      (t (error 'unsupported-version :major-version major-version)))))
+  (identifier (tag-id :length 3))
   (major-version u1)
   (revision u1)
   (flags u1)
   (size id3-tag-size))
+
+(define-binary-type tag-id (length)
+  (:reader (in)
+           (with-result-in (id (read-value 'iso-8859-1-string in :length length))
+             (if (not (string= "ID3" id))
+                 (error 'missing-id3-tag))))
+  (:writer (out id)
+           (write-value 'iso-8859-1-string id :length length)))
 
 ;; frame IDs are just like other regular IDs in the ID3 spec, but they are
 ;; designed to signal the `in-padding' "exception" to transfer control up
@@ -197,9 +227,6 @@
   (id (frame-id :length 3))
   (size u3))
 
-;; (define-binary-class generic-id3-frame (id3-frame)
-;;   (data (raw-bytes :size size)))
-
 ;; The decision to make this a base class (as opposed to subclassing
 ;; `id3-frame') is done to avoid the concrete frame classes in each
 ;; version (2.2 and 2.3) duplicate the `data' field. However, the tradeoff
@@ -211,7 +238,8 @@
 ;; `first-object-in-processing-stack')
 ;;
 (define-binary-class generic-id3-frame ()
-  (data (raw-bytes :size (data-bytes (first-object-in-processing-stack)))))
+  (data (raw-bytes :size (data-bytes (first-object-in-processing-stack))
+                   :max-size (megabytes->bytes 1.0))))
 
 (defgeneric data-bytes (frame))
 
@@ -238,21 +266,32 @@
     (in-padding () nil)))
 
 (defun read-id3 (filepath)
-  "Read the ID3 tag of the mp3 at `filepath'"
-  (with-open-file (in filepath :element-type '(unsigned-byte 8))
-    ;; FIXME: we should replace this with a specific condition to signal that we
-    ;; couldn't read a specific version (e.g., v2.4) to avoid conflating other
-    ;; legitimate errors
-    (handler-case (read-value 'id3-tag in)
-      (error () (progn (format t "failed to process ~a~%" (enough-namestring filepath)) nil)))))
+  "Return the ID3 of `filepath' or `nil' if there was an error during parsing."
+  (let ((shortpath (enough-namestring filepath)))
+    (with-open-file (in filepath :element-type '(unsigned-byte 8))
+      (handler-case (read-value 'id3-tag in)
+        (missing-id3-tag ()
+          (prog-nil
+           (format t "ERROR: missing ID3 tag (maybe it is IDv1?): ~a~%" shortpath)))
+        (data-too-large (condition)
+          (prog-nil
+            (format t "ERROR: raw data too large (~a -- ~a) (unsupported ID3 version?) -- skipping~%"
+                    shortpath
+                    (human-readable-size (size condition)))))
+        (unsupported-version (condition)
+          (prog-nil
+            (format t "ERROR: unsupported major version (~a): ~a~%" (major-version condition) shortpath)))
+        (error (condition)
+          (prog-nil (format t "ERROR: failed to process ~a: ~a~%" shortpath condition)))))))
 
 (defun show-tag-headers (directory)
   "Show the ID3 tag header for all mp3 files under `directory'"
   (flet
       ((show-tag-header (file)
-         (with-slots (identifier major-version revision flags size) (read-id3 file)
-           (format t "~a ~d.~d ~8,'0b ~d bytes -- ~a~%"
-                   identifier major-version revision flags size (enough-namestring file)))))
+         (let-when (id3-tag (read-id3 file))
+           (with-slots (identifier major-version revision flags size) id3-tag
+             (format t "~a ~d.~d ~8,'0b ~d bytes -- ~a~%"
+                     identifier major-version revision flags size (enough-namestring file))))))
     (walk-directory directory #'show-tag-header
                     :recursively t
                     :file-condition (fn-and mp3-p id3-p))))
@@ -261,8 +300,10 @@
   "Count the total number of mp3 files grouped by the version of their ID3 tags"
   (let ((version-counts (mapcar #'(lambda (version) (cons version 0)) '(2 3 4))))
     (flet ((count-version (file)
-             (let-when (major-version (assoc (major-version (read-id3 file)) version-counts))
-               (incf (cdr major-version)))))
+             ;; FIXME: design and implement a multi-argument version of `let-when'
+             (let-when (tag (read-id3 file))
+               (let-when (major-version (assoc (major-version tag) version-counts))
+                 (incf (cdr major-version))))))
       (walk-directory directory #'count-version
                       :recursively t
                       :file-condition #'mp3-p))
@@ -305,7 +346,7 @@
            (setf ids (nunion ids (frame-types filepath) :key #'frame-id :test #'string=))))
       (walk-directory directory #'collect
                       :recursively t
-                      :file-condition (fn-and mp3-p id3-p)))
+                      :file-condition #'mp3-p))
     (case sort-by
       (id      (sort! ids #'string< :key #'frame-id))
       (version (sort! ids #'< :key #'frame-version)))))

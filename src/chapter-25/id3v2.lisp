@@ -6,6 +6,42 @@
 
 (defparameter *silence-errors* nil)
 
+(defparameter *id3-v1-genres*
+  #(
+    ;;These are the official ID3v1 genres.
+    "Blues" "Classic Rock" "Country" "Dance" "Disco" "Funk" "Grunge"
+    "Hip-Hop" "Jazz" "Metal" "New Age" "Oldies" "Other" "Pop" "R&B" "Rap"
+    "Reggae" "Rock" "Techno" "Industrial" "Alternative" "Ska"
+    "Death Metal" "Pranks" "Soundtrack" "Euro-Techno" "Ambient"
+    "Trip-Hop" "Vocal" "Jazz+Funk" "Fusion" "Trance" "Classical"
+    "Instrumental" "Acid" "House" "Game" "Sound Clip" "Gospel" "Noise"
+    "AlternRock" "Bass" "Soul" "Punk" "Space" "Meditative"
+    "Instrumental Pop" "Instrumental Rock" "Ethnic" "Gothic" "Darkwave"
+    "Techno-Industrial" "Electronic" "Pop-Folk" "Eurodance" "Dream"
+    "Southern Rock" "Comedy" "Cult" "Gangsta" "Top 40" "Christian Rap"
+    "Pop/Funk" "Jungle" "Native American" "Cabaret" "New Wave"
+    "Psychadelic" "Rave" "Showtunes" "Trailer" "Lo-Fi" "Tribal"
+    "Acid Punk" "Acid Jazz" "Polka" "Retro" "Musical" "Rock & Roll"
+    "Hard Rock"
+    ;;These were made up by the authors of Winamp but backported into
+    ;; the ID3 spec.
+    "Folk" "Folk-Rock" "National Folk" "Swing" "Fast Fusion"
+    "Bebob" "Latin" "Revival" "Celtic" "Bluegrass" "Avantgarde"
+    "Gothic Rock" "Progressive Rock" "Psychedelic Rock" "Symphonic Rock"
+    "Slow Rock" "Big Band" "Chorus" "Easy Listening" "Acoustic" "Humour"
+    "Speech" "Chanson" "Opera" "Chamber Music" "Sonata" "Symphony"
+    "Booty Bass" "Primus" "Porn Groove" "Satire" "Slow Jam" "Club"
+    "Tango" "Samba" "Folklore" "Ballad" "Power Ballad" "Rhythmic Soul"
+    "Freestyle" "Duet" "Punk Rock" "Drum Solo" "A capella" "Euro-House"
+    "Dance Hall"
+    ;;These were also invented by the Winamp folks but ignored by the
+    ;; ID3 authors.
+    "Goa" "Drum & Bass" "Club-House" "Hardcore" "Terror" "Indie"
+    "BritPop" "Negerpunk" "Polsk Punk" "Beat" "Christian Gangsta Rap"
+    "Heavy Metal" "Black Metal" "Crossover" "Contemporary Christian"
+    "Christian Rock" "Merengue" "Salsa" "Thrash Metal" "Anime" "Jpop"
+    "Synthpop"))
+
 ;; -----------------------------------------------------------------------------
 ;; General Utilities & Macros
 ;; -----------------------------------------------------------------------------
@@ -13,11 +49,11 @@
   `#'(lambda (&rest args)
        (and ,@(loop for fn in functions collect `(apply #',fn args)))))
 
-(defmacro let-when ((var condition) &body then)
+(defmacro if-let ((var condition) &body then)
   `(let ((,var ,condition))
      (when ,var ,@then)))
 
-(defmacro with-result-in ((result &optional initform) &body body)
+(defmacro with-result-as ((result &optional initform) &body body)
   `(let ((,result ,initform))
      ,@body
      ,result))
@@ -60,9 +96,7 @@
 (define-binary-type iso-8859-1-char ()
   (:reader (in)
            (let ((code (read-byte in)))
-             (code-char code)
-             (or (code-char code)
-                 (error "Character code ~d not supported" code))))
+             (code-char code)))
   (:writer (out char)
            (let ((code (char-code char)))
              (if (<= 0 code #xff)
@@ -74,7 +108,7 @@
   (:reader (in)
            (let ((code (read-value 'u2 in)))
              (if swap (setf code (swap-bytes code)))
-             (or (code-char code) (error "Character code ~d not supported" code))))
+             (code-char code)))
   (:writer (out char)
            (let ((code (char-code char)))
              (unless (<= 0 code #xffff)
@@ -91,7 +125,7 @@
 
 (define-binary-type generic-string (length character-type)
   (:reader (in)
-           (with-result-in (string (make-string length))
+           (with-result-as (string (make-string length))
              (dotimes (i length)
                (setf (char string i) (read-value character-type in)))))
   (:writer (out string)
@@ -120,34 +154,34 @@
            (let ((byte-order-mark (read-value 'u2 in))
                  (characters (1- (/ length 2))))
              (read-value 'generic-string in
-                          :length characters
-                          :character-type (ucs-2-char-type byte-order-mark))))
+                         :length characters
+                         :character-type (ucs-2-char-type byte-order-mark))))
   (:writer (out string)
            (declare (ignorable length))
            (assert (= length (length string)))
 
            (write-value 'u2 out *bom-big-endian*)
            (write-value 'generic-string out string
-                         :length (length string)
-                         :character-type (ucs-2-char-type *bom-big-endian*))))
+                        :length (length string)
+                        :character-type (ucs-2-char-type *bom-big-endian*))))
 
 (define-binary-type ucs-2-terminated-string (terminator)
   (:reader (in)
            (let ((byte-order-mark (read-value 'u2 in)))
              (read-value 'generic-terminated-string in
-                          :terminator terminator
-                          :character-type (ucs-2-char-type byte-order-mark))))
+                         :terminator terminator
+                         :character-type (ucs-2-char-type byte-order-mark))))
   (:writer (out string)
            (write-value 'u2 out *bom-big-endian*)
            (write-value 'generic-terminated-string out string
-                         :terminator terminator
-                         :character-type (ucs-2-char-type *bom-big-endian*))))
+                        :terminator terminator
+                        :character-type (ucs-2-char-type *bom-big-endian*))))
 
 (define-binary-type raw-bytes (size max-size)
   (:reader (in)
            (if (> size max-size)
                (error 'data-too-large :size size :max-size max-size))
-           (with-result-in (buffer (make-array size :element-type '(unsigned-byte 8)))
+           (with-result-as (buffer (make-array size :element-type '(unsigned-byte 8)))
              (read-sequence buffer in)))
   (:writer (out buffer)
            (assert (= size (length buffer)))
@@ -206,7 +240,7 @@
 
 (define-binary-type tag-id (length)
   (:reader (in)
-           (with-result-in (id (read-value 'iso-8859-1-string in :length length))
+           (with-result-as (id (read-value 'iso-8859-1-string in :length length))
              (if (not (string= "ID3" id))
                  (error 'missing-id3-tag))))
   (:writer (out id)
@@ -292,7 +326,7 @@
   "Show the ID3 tag header for all mp3 files under `directory'"
   (flet
       ((show-tag-header (file)
-         (let-when (id3-tag (read-id3 file))
+         (if-let (id3-tag (read-id3 file))
            (with-slots (identifier major-version revision flags size) id3-tag
              (format t "~a ~d.~d ~8,'0b ~d bytes -- ~a~%"
                      identifier major-version revision flags size (enough-namestring file))))))
@@ -300,13 +334,18 @@
                     :recursively t
                     :file-condition (fn-and mp3-p id3-p))))
 
+(defun show-mp3s (directory)
+  (walk-directory directory #'show-mp3-metadata
+                  :recursively t
+                  :file-condition #'mp3-p))
+
 (defun count-versions (directory)
   "Count the total number of mp3 files grouped by the version of their ID3 tags"
   (let ((version-counts (mapcar #'(lambda (version) (cons version 0)) '(2 3 4))))
     (flet ((count-version (file)
-             ;; FIXME: design and implement a multi-argument version of `let-when'
-             (let-when (tag (read-id3 file))
-               (let-when (major-version (assoc (major-version tag) version-counts))
+             ;; FIXME: design and implement a multi-argument version of `if-let'
+             (if-let (tag (read-id3 file))
+               (if-let (major-version (assoc (major-version tag) version-counts))
                  (incf (cdr major-version))))))
       (walk-directory directory #'count-version
                       :recursively t
@@ -324,10 +363,34 @@
   (with-open-file (in filepath :element-type '(unsigned-byte 8))
     (string= "ID3" (read-value 'iso-8859-1-string in :length 3))))
 
-(defun find-frame-class (id)
-  (ecase (length id)
-    (3 'generic-id3-frame-v2.2)
-    (4 'generic-id3-frame-v2.3)))
+(defun show-mp3-metadata (filepath)
+  (if-let (id3 (read-id3 filepath))
+    (format t "file: ~a ~%" (enough-namestring filepath))
+    (show-id3-information id3))
+  (format t "~%"))
+
+(defun show-id3-information (tag)
+  (format t "version: v2.~a" (major-version tag))
+  (format t "~&artist: ~a ~&song: ~a ~&album: ~a ~&genre: ~a ~&year: ~a ~%"
+          (artist tag)
+          (song tag)
+          (album tag)
+          (genre tag)
+          (year tag)))
+
+(defun find-frame-class (name)
+  (cond
+    ((and (char= (char name 0) #\T)
+          (not (member name '("TXX" "TXXX") :test #'string=)))
+     (ecase (length name)
+       (3 'text-info-frame-v2.2)
+       (4 'text-info-frame-v2.3)))
+    ((string= name "COM") 'comment-frame-v2.2)
+    ((string= name "COMM") 'comment-frame-v2.3)
+    (t
+     (ecase (length name)
+       (3 'generic-id3-frame-v2.2)
+       (4 'generic-id3-frame-v2.3)))))
 
 (defun frame-id (plist)
   (getf plist :id))
@@ -336,7 +399,7 @@
   (getf plist :version))
 
 (defun frame-types (filepath)
-  (let-when (id3 (read-id3 filepath))
+  (if-let (id3 (read-id3 filepath))
     (delete-duplicates
      (mapcar #'(lambda (frame) (list :id (id frame) :version (major-version id3)))
              (frames id3))
@@ -344,7 +407,7 @@
      :test #'string=)))
 
 (defun frame-types-in-directory (directory &key sort-by)
-  (with-result-in (ids)
+  (with-result-as (ids)
     (flet
         ((collect (filepath)
            (setf ids (nunion ids (frame-types filepath) :key #'frame-id :test #'string=))))
@@ -354,6 +417,87 @@
     (case sort-by
       (id      (sort! ids #'string< :key #'frame-id))
       (version (sort! ids #'< :key #'frame-version)))))
+
+(defun non-terminated-type (encoding)
+  (ecase encoding
+    (0 'iso-8859-1-string)
+    (1 'ucs-2-string)))
+
+(defun terminated-type (encoding)
+  (ecase encoding
+    (0 'iso-8859-1-terminated-string)
+    (1 'ucs-2-terminated-string)))
+
+(defun string-args (encoding length terminator)
+  (cond
+    (length
+     (values (non-terminated-type encoding) :length length))
+    (terminator
+     (values (terminated-type encoding) :terminator terminator))))
+
+(define-binary-type id3-encoded-string (encoding length terminator)
+  (:reader (in)
+           (multiple-value-bind (type keyword arg)
+               (string-args encoding length terminator)
+             (read-value type in keyword arg)))
+  (:writer (out string)
+           (multiple-value-bind (type keyword arg)
+               (string-args encoding length terminator)
+             (write-value type out string keyword arg))))
+
+(define-binary-class text-info-frame ()
+  (encoding u1)
+  (information (id3-encoded-string :encoding encoding :length (bytes-left 1))))
+
+(define-binary-class comment-frame ()
+  (encoding u1)
+  (language (iso-8859-1-string :length 3))
+  (description (id3-encoded-string :encoding encoding :terminator +null+))
+  (text (id3-encoded-string
+         :encoding encoding
+         :length (bytes-left
+                  (+ 1 ; encoding
+                     3 ; language
+                     (encoded-string-length description encoding t))))))
+
+(defun bytes-left (bytes-read)
+  (- (size (first-object-in-processing-stack))
+     bytes-read))
+
+(defun encoded-string-length (string encoding terminated)
+  (let ((characters (+ (length string) (if terminated 1 0))))
+    (* characters (ecase encoding (0 1) (1 2)))))
+
+(defun upto-null (string)
+  (subseq string 0 (position +null+ string)))
+
+(defun find-frame (id3 ids)
+  (find-if #'(lambda (frame) (find (id frame) ids :test #'string=))
+           (frames id3)))
+
+(defun get-text-info (id3 &rest ids)
+  (let ((frame (find-frame id3 ids)))
+    (when frame (upto-null (information frame)))))
+
+(defmacro def-id3-getter (name &rest ids)
+  `(defun ,name (id3)
+     (get-text-info id3 ,@ids)))
+
+(def-id3-getter song "TT2" "TIT2")
+(def-id3-getter album "TAL" "TALB")
+(def-id3-getter artist "TP1" "TPE1")
+(def-id3-getter track "TRK" "TRCK")
+(def-id3-getter year "TYE" "TYER" "TDRC")
+(def-id3-getter genre "TCO" "TCON")
+
+(defun translated-genre (id3)
+  (let ((genre (genre id3)))
+    (if (and genre (char= #\( (char genre 0)))
+        (translate-v1-genre genre)
+        genre)))
+
+(defun translate-v1-genre (genre)
+  (aref *id3-v1-genres* (parse-integer genre :start 1 :junk-allowed t)))
 
 ;; -----------------------------------------------------------------------------
 ;; ID3 V2.2
@@ -372,6 +516,10 @@
 
 (defmethod data-bytes ((frame id3v2.2-frame))
   (size frame))
+
+(define-binary-class text-info-frame-v2.2 (id3v2.2-frame text-info-frame))
+
+(define-binary-class comment-frame-v2.2 (id3v2.2-frame comment-frame))
 
 ;; -----------------------------------------------------------------------------
 ;; ID3 V2.3
@@ -393,6 +541,10 @@
   (grouping-identity (optional :type 'u1 :if (frame-grouped-p flags))))
 
 (define-binary-class generic-id3-frame-v2.3 (id3v2.3-frame generic-id3-frame))
+
+(define-binary-class text-info-frame-v2.3 (id3v2.3-frame text-info-frame))
+
+(define-binary-class comment-frame-v2.3 (id3v2.3-frame comment-frame))
 
 (defmethod frame-header-size ((frame id3v2.3-frame)) 10)
 

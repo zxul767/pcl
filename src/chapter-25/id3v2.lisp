@@ -120,7 +120,7 @@
 (define-binary-type ucs-2-char-big-endian ()
   (ucs-2-char :swap nil))
 
-(define-binary-type ucs-2-char-big-endian ()
+(define-binary-type ucs-2-char-little-endian ()
   (ucs-2-char :swap t))
 
 (define-binary-type generic-string (length character-type)

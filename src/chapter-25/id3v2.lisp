@@ -80,13 +80,13 @@
 ;; -----------------------------------------------------------------------------
 (define-binary-type unsigned-integer (bytes bits-per-byte)
   (:reader (in)
-           (loop with value = 0
-                 for low-bit downfrom (* bits-per-byte (1- bytes)) to 0 by bits-per-byte
-                 do (setf (ldb (byte bits-per-byte low-bit) value) (read-byte in))
-                 finally (return value)))
+    (loop with value = 0
+          for low-bit downfrom (* bits-per-byte (1- bytes)) to 0 by bits-per-byte
+          do (setf (ldb (byte bits-per-byte low-bit) value) (read-byte in))
+          finally (return value)))
   (:writer (out value)
-           (loop for low-bit downfrom (* bits-per-byte (1- bytes)) to 0 by bits-per-byte
-                 do (write-byte (ldb (byte bits-per-byte low-bit) value) out))))
+    (loop for low-bit downfrom (* bits-per-byte (1- bytes)) to 0 by bits-per-byte
+          do (write-byte (ldb (byte bits-per-byte low-bit) value) out))))
 
 (define-binary-type u1 () (unsigned-integer :bytes 1 :bits-per-byte 8))
 (define-binary-type u2 () (unsigned-integer :bytes 2 :bits-per-byte 8))
@@ -95,27 +95,27 @@
 
 (define-binary-type iso-8859-1-char ()
   (:reader (in)
-           (let ((code (read-byte in)))
-             (code-char code)))
+    (let ((code (read-byte in)))
+      (code-char code)))
   (:writer (out char)
-           (let ((code (char-code char)))
-             (if (<= 0 code #xff)
-                 (write-byte code out)
-                 (error "Illegal character for iso-8859-1 encoding. Character: ~c with code: ~d"
-                        char code)))))
+    (let ((code (char-code char)))
+      (if (<= 0 code #xff)
+          (write-byte code out)
+          (error "Illegal character for iso-8859-1 encoding. Character: ~c with code: ~d"
+                 char code)))))
 
 (define-binary-type ucs-2-char (swap)
   (:reader (in)
-           (let ((code (read-value 'u2 in)))
-             (if swap (setf code (swap-bytes code)))
-             (code-char code)))
+    (let ((code (read-value 'u2 in)))
+      (if swap (setf code (swap-bytes code)))
+      (code-char code)))
   (:writer (out char)
-           (let ((code (char-code char)))
-             (unless (<= 0 code #xffff)
-               (error "Illegal character for ucs-2 encoding: ~c with char-code: ~d"
-                      char code))
-             (if swap (setf code (swap-bytes code)))
-             (write-value 'u2 out code))))
+    (let ((code (char-code char)))
+      (unless (<= 0 code #xffff)
+        (error "Illegal character for ucs-2 encoding: ~c with char-code: ~d"
+               char code))
+      (if swap (setf code (swap-bytes code)))
+      (write-value 'u2 out code))))
 
 (define-binary-type ucs-2-char-big-endian ()
   (ucs-2-char :swap nil))
@@ -125,23 +125,23 @@
 
 (define-binary-type generic-string (length character-type)
   (:reader (in)
-           (with-result-as (string (make-string length))
-             (dotimes (i length)
-               (setf (char string i) (read-value character-type in)))))
+    (with-result-as (string (make-string length))
+      (dotimes (i length)
+        (setf (char string i) (read-value character-type in)))))
   (:writer (out string)
-           (dotimes (i length)
-             (write-value character-type out (char string i)))))
+    (dotimes (i length)
+      (write-value character-type out (char string i)))))
 
 (define-binary-type generic-terminated-string (terminator character-type)
   (:reader (in)
-           (with-output-to-string (s)
-             (loop for char = (read-value character-type in)
-                   until (char= char terminator)
-                   do (write-char char s))))
+    (with-output-to-string (s)
+      (loop for char = (read-value character-type in)
+            until (char= char terminator)
+            do (write-char char s))))
   (:writer (out string)
-           (loop for char across string
-                 do (write-value character-type out char)
-                 finally (write-value character-type out terminator))))
+    (loop for char across string
+          do (write-value character-type out char)
+          finally (write-value character-type out terminator))))
 
 (define-binary-type iso-8859-1-string (length)
   (generic-string :length length :character-type 'iso-8859-1-char))
@@ -151,42 +151,42 @@
 
 (define-binary-type ucs-2-string (length)
   (:reader (in)
-           (let ((byte-order-mark (read-value 'u2 in))
-                 (characters (1- (/ length 2))))
-             (read-value 'generic-string in
-                         :length characters
-                         :character-type (ucs-2-char-type byte-order-mark))))
+    (let ((byte-order-mark (read-value 'u2 in))
+          (characters (1- (/ length 2))))
+      (read-value 'generic-string in
+                  :length characters
+                  :character-type (ucs-2-char-type byte-order-mark))))
   (:writer (out string)
-           (declare (ignorable length))
-           (assert (= length (length string)))
+    (declare (ignorable length))
+    (assert (= length (length string)))
 
-           (write-value 'u2 out *bom-big-endian*)
-           (write-value 'generic-string out string
-                        :length (length string)
-                        :character-type (ucs-2-char-type *bom-big-endian*))))
+    (write-value 'u2 out *bom-big-endian*)
+    (write-value 'generic-string out string
+                 :length (length string)
+                 :character-type (ucs-2-char-type *bom-big-endian*))))
 
 (define-binary-type ucs-2-terminated-string (terminator)
   (:reader (in)
-           (let ((byte-order-mark (read-value 'u2 in)))
-             (read-value 'generic-terminated-string in
-                         :terminator terminator
-                         :character-type (ucs-2-char-type byte-order-mark))))
+    (let ((byte-order-mark (read-value 'u2 in)))
+      (read-value 'generic-terminated-string in
+                  :terminator terminator
+                  :character-type (ucs-2-char-type byte-order-mark))))
   (:writer (out string)
-           (write-value 'u2 out *bom-big-endian*)
-           (write-value 'generic-terminated-string out string
-                        :terminator terminator
-                        :character-type (ucs-2-char-type *bom-big-endian*))))
+    (write-value 'u2 out *bom-big-endian*)
+    (write-value 'generic-terminated-string out string
+                 :terminator terminator
+                 :character-type (ucs-2-char-type *bom-big-endian*))))
 
 (define-binary-type raw-bytes (size max-size)
   (:reader (in)
-           (if (> size max-size)
-               (error 'data-too-large :size size :max-size max-size))
-           (with-result-as (buffer (make-array size :element-type '(unsigned-byte 8)))
-             (read-sequence buffer in)))
+    (if (> size max-size)
+        (error 'data-too-large :size size :max-size max-size))
+    (with-result-as (buffer (make-array size :element-type '(unsigned-byte 8)))
+      (read-sequence buffer in)))
   (:writer (out buffer)
-           (assert (= size (length buffer)))
-           (assert (< size max-size))
-           (write-sequence buffer out)))
+    (assert (= size (length buffer)))
+    (assert (< size max-size))
+    (write-sequence buffer out)))
 
 (defun ucs-2-char-type (byte-order-mark)
   (ecase byte-order-mark
@@ -223,9 +223,9 @@
 
 (define-binary-type optional (type if)
   (:reader (in)
-           (when if (read-value type in)))
+    (when if (read-value type in)))
   (:writer (out value)
-           (when if (write-value type out value))))
+    (when if (write-value type out value))))
 
 (define-tagged-binary-class id3-tag ()
     ((:class-finder (case major-version
@@ -240,23 +240,23 @@
 
 (define-binary-type tag-id (length)
   (:reader (in)
-           (with-result-as (id (read-value 'iso-8859-1-string in :length length))
-             (if (not (string= "ID3" id))
-                 (error 'missing-id3-tag))))
+    (with-result-as (id (read-value 'iso-8859-1-string in :length length))
+      (if (not (string= "ID3" id))
+          (error 'missing-id3-tag))))
   (:writer (out id)
-           (write-value 'iso-8859-1-string id :length length)))
+    (write-value 'iso-8859-1-string id :length length)))
 
 ;; frame IDs are just like other regular IDs in the ID3 spec, but they are
 ;; designed to signal the `in-padding' "exception" to transfer control up
 ;; to the `read-frame' function when padding is found.
 (define-binary-type frame-id (length)
   (:reader (in)
-           (let ((first-byte (read-byte in)))
-             (if (= first-byte 0) (signal 'in-padding))
-             (let ((rest (read-value 'iso-8859-1-string in :length (1- length))))
-               (concatenate 'string (string (code-char first-byte)) rest))))
+    (let ((first-byte (read-byte in)))
+      (if (= first-byte 0) (signal 'in-padding))
+      (let ((rest (read-value 'iso-8859-1-string in :length (1- length))))
+        (concatenate 'string (string (code-char first-byte)) rest))))
   (:writer (out id)
-           (write-value 'iso-8859-1-string id :length length)))
+    (write-value 'iso-8859-1-string id :length length)))
 
 (define-tagged-binary-class id3-frame ()
     ((:class-finder (find-frame-class id)))
@@ -281,21 +281,21 @@
 
 (define-binary-type id3-frames (tag-size frame-type)
   (:reader (in)
-           (loop with to-read = tag-size
-                 while (plusp to-read)
-                 for frame = (read-frame frame-type in)
-                 while frame
-                 do (decf to-read (+ (frame-header-size frame) (size frame)))
-                 collect frame
-                 ;; skip over null padding
-                 finally (loop repeat (1- to-read) do (read-byte in))))
+    (loop with to-read = tag-size
+          while (plusp to-read)
+          for frame = (read-frame frame-type in)
+          while frame
+          do (decf to-read (+ (frame-header-size frame) (size frame)))
+          collect frame
+          ;; skip over null padding
+          finally (loop repeat (1- to-read) do (read-byte in))))
   (:writer (out frames)
-           (loop with to-write = tag-size
-                 for frame in frames
-                 do (write-value frame-type out frame)
-                    (decf to-write (+ (frame-header-size frame) (size frame)))
-                    ;; write null padding if necessary
-                 finally (loop repeat to-write do (write-byte 0 out)))))
+    (loop with to-write = tag-size
+          for frame in frames
+          do (write-value frame-type out frame)
+             (decf to-write (+ (frame-header-size frame) (size frame)))
+             ;; write null padding if necessary
+          finally (loop repeat to-write do (write-byte 0 out)))))
 
 (defun read-frame (frame-type in)
   (handler-case (read-value frame-type in)
@@ -437,13 +437,13 @@
 
 (define-binary-type id3-encoded-string (encoding length terminator)
   (:reader (in)
-           (multiple-value-bind (type keyword arg)
-               (string-args encoding length terminator)
-             (read-value type in keyword arg)))
+    (multiple-value-bind (type keyword arg)
+        (string-args encoding length terminator)
+      (read-value type in keyword arg)))
   (:writer (out string)
-           (multiple-value-bind (type keyword arg)
-               (string-args encoding length terminator)
-             (write-value type out string keyword arg))))
+    (multiple-value-bind (type keyword arg)
+        (string-args encoding length terminator)
+      (write-value type out string keyword arg))))
 
 (define-binary-class text-info-frame ()
   (encoding u1)

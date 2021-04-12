@@ -1,5 +1,25 @@
 (in-package :dev.zxul767.binary)
 
+;; Tell SLIME to indent certain macros we'll define later in this file
+;; in special ways (basically so they indent as if they were defun bodies)
+;;
+;; For instance, the following definition would normally indent the `let'
+;; body to align with the `(in)' parameter, but in reality we want it to
+;; be indented as a body:
+;;
+;; (define-binary-type iso-8859-1-string (length)
+;;   (:reader (in)
+;;     (let ((string (make-string length)))
+;;       (dotimes (i length)
+;;         (setf (char string i) (code-char (read-byte in))))
+;;       string))
+;;   (:writer (out string)
+;;     (dotimes (i length)
+;;       (write-byte (char-code (char string i)) out))))
+(indent:define-indentation
+    define-binary-type (&lambda &lambda &rest (&whole 2 4 &rest 2)))
+(indent:initialize-slime)
+
 (defconstant +null+ (code-char 0))
 
 ;; -----------------------------------------------------------------------------
@@ -204,13 +224,13 @@ stack) currently being read/written."
 ;;
 ;; (define-binary-type iso-8859-1-string (length)
 ;;   (:reader (in)
-;;            (let ((string (make-string length)))
-;;              (dotimes (i length)
-;;                (setf (char string i) (code-char (read-byte in))))
-;;              string))
+;;     (let ((string (make-string length)))
+;;       (dotimes (i length)
+;;         (setf (char string i) (code-char (read-byte in))))
+;;       string))
 ;;   (:writer (out string)
-;;            (dotimes (i length)
-;;              (write-byte (char-code (char string i)) out))))
+;;     (dotimes (i length)
+;;       (write-byte (char-code (char string i)) out))))
 ;; -----------------------------------------------------------------------------
 (defmacro define-binary-type (name (&rest args) &body spec)
   (ecase (length spec)

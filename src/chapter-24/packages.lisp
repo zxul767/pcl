@@ -1,7 +1,10 @@
 (in-package :cl-user)
 
 (defpackage :dev.zxul767.binary
-  (:use :common-lisp :dev.zxul767.macrotools)
+  (:use
+   :common-lisp
+   :trivial-indent
+   :dev.zxul767.macrotools)
   (:export
    :define-binary-class
    :define-tagged-binary-class

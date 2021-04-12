@@ -387,18 +387,21 @@
           (year tag)))
 
 (defun find-frame-class (name)
-  (cond
-    ((and (char= (char name 0) #\T)
-          (not (member name '("TXX" "TXXX") :test #'string=)))
-     (ecase (length name)
-       (3 'text-info-frame-v2.2)
-       (4 'text-info-frame-v2.3)))
-    ((string= name "COM") 'comment-frame-v2.2)
-    ((string= name "COMM") 'comment-frame-v2.3)
-    (t
-     (ecase (length name)
-       (3 'generic-id3-frame-v2.2)
-       (4 'generic-id3-frame-v2.3)))))
+  (with-labels
+      (cond
+        ((is-standard-text-frame name)
+         (ecase (length name)
+           (3 'text-info-frame-v2.2)
+           (4 'text-info-frame-v2.3)))
+        ((string= name "COM") 'comment-frame-v2.2)
+        ((string= name "COMM") 'comment-frame-v2.3)
+        (t
+         (ecase (length name)
+           (3 'generic-id3-frame-v2.2)
+           (4 'generic-id3-frame-v2.3))))
+    (is-standard-text-frame (name)
+      (and (char= (char name 0) #\T)
+           (not (member name '("TXX" "TXXX") :test #'string=))))))
 
 (defun frame-id (plist)
   (getf plist :id))

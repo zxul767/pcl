@@ -75,6 +75,13 @@
 (defun megabytes->bytes (megabytes)
   (round (* megabytes 1024 1024)))
 
+(defmacro with-labels (form &body definitions)
+  `(labels ,definitions ,form))
+
+(indent:define-indentation
+    with-labels ((&whole 4 &rest 4) &rest (&whole 2 4 &rest 2)))
+(indent:initialize-slime)
+
 ;; -----------------------------------------------------------------------------
 ;; Primitive Types
 ;; -----------------------------------------------------------------------------
@@ -324,15 +331,15 @@
 
 (defun show-tag-headers (directory)
   "Show the ID3 tag header for all mp3 files under `directory'"
-  (flet
-      ((show-tag-header (file)
-         (if-let (id3-tag (read-id3 file))
-           (with-slots (identifier major-version revision flags size) id3-tag
-             (format t "~a ~d.~d ~8,'0b ~d bytes -- ~a~%"
-                     identifier major-version revision flags size (enough-namestring file))))))
-    (walk-directory directory #'show-tag-header
-                    :recursively t
-                    :file-condition (fn-and mp3-p id3-p))))
+  (with-labels
+      (walk-directory directory #'show-tag-header
+          :recursively t
+          :file-condition (fn-and mp3-p id3-p))
+    (show-tag-header (file)
+      (if-let (id3-tag (read-id3 file))
+        (with-slots (identifier major-version revision flags size) id3-tag
+          (format t "~a ~d.~d ~8,'0b ~d bytes -- ~a~%"
+                  identifier major-version revision flags size (enough-namestring file)))))))
 
 (defun show-mp3s (directory)
   (walk-directory directory #'show-mp3-metadata
@@ -342,14 +349,15 @@
 (defun count-versions (directory)
   "Count the total number of mp3 files grouped by the version of their ID3 tags"
   (let ((version-counts (mapcar #'(lambda (version) (cons version 0)) '(2 3 4))))
-    (flet ((count-version (file)
-             ;; FIXME: design and implement a multi-argument version of `if-let'
-             (if-let (tag (read-id3 file))
-               (if-let (major-version (assoc (major-version tag) version-counts))
-                 (incf (cdr major-version))))))
-      (walk-directory directory #'count-version
-                      :recursively t
-                      :file-condition #'mp3-p))
+    (with-labels
+        (walk-directory directory #'count-version
+            :recursively t
+            :file-condition #'mp3-p)
+      (count-version (file)
+        ;; FIXME: design and implement a multi-argument version of `if-let'
+        (if-let (tag (read-id3 file))
+          (if-let (major-version (assoc (major-version tag) version-counts))
+            (incf (cdr major-version))))))
     (loop for (version . count) in version-counts
           collect `(:version ,version :count ,count))))
 

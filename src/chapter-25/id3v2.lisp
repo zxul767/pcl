@@ -53,7 +53,7 @@
   `(let ((,var ,condition))
      (when ,var ,@then)))
 
-(defmacro with-result-as ((result &optional initform) &body body)
+(defmacro with-result ((result &optional initform) &body body)
   `(let ((,result ,initform))
      ,@body
      ,result))
@@ -132,7 +132,7 @@
 
 (define-binary-type generic-string (length character-type)
   (:reader (in)
-    (with-result-as (string (make-string length))
+    (with-result (string (make-string length))
       (dotimes (i length)
         (setf (char string i) (read-value character-type in)))))
   (:writer (out string)
@@ -188,7 +188,7 @@
   (:reader (in)
     (if (> size max-size)
         (error 'data-too-large :size size :max-size max-size))
-    (with-result-as (buffer (make-array size :element-type '(unsigned-byte 8)))
+    (with-result (buffer (make-array size :element-type '(unsigned-byte 8)))
       (read-sequence buffer in)))
   (:writer (out buffer)
     (assert (= size (length buffer)))
@@ -247,7 +247,7 @@
 
 (define-binary-type tag-id (length)
   (:reader (in)
-    (with-result-as (id (read-value 'iso-8859-1-string in :length length))
+    (with-result (id (read-value 'iso-8859-1-string in :length length))
       (if (not (string= "ID3" id))
           (error 'missing-id3-tag))))
   (:writer (out id)
@@ -415,13 +415,13 @@
      :test #'string=)))
 
 (defun frame-types-in-directory (directory &key sort-by)
-  (with-result-as (ids)
-    (flet
-        ((collect (filepath)
-           (setf ids (nunion ids (frame-types filepath) :key #'frame-id :test #'string=))))
-      (walk-directory directory #'collect
-                      :recursively t
-                      :file-condition #'mp3-p))
+  (with-result (ids)
+    (with-labels
+        (walk-directory directory #'collect
+            :recursively t
+            :file-condition #'mp3-p)
+      (collect (filepath)
+        (setf ids (nunion ids (frame-types filepath) :key #'frame-id :test #'string=))))
     (case sort-by
       (id      (sort! ids #'string< :key #'frame-id))
       (version (sort! ids #'< :key #'frame-version)))))

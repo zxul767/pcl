@@ -49,9 +49,27 @@
   `#'(lambda (&rest args)
        (and ,@(loop for fn in functions collect `(apply #',fn args)))))
 
-(defmacro if-let ((var condition) &body then)
-  `(let ((,var ,condition))
-     (when ,var ,@then)))
+(defmacro with-labels (form &body definitions)
+  `(labels ,definitions ,form))
+
+(indent:define-indentation
+    with-labels ((&whole 4 &rest 4) &rest (&whole 2 4 &rest 2)))
+(indent:initialize-slime)
+
+(defmacro when-bind (forms &body body)
+  (let ((variables (mapcar #'car forms)))
+    `(let ,forms
+       (when (and ,@variables)
+         ,@body))))
+
+(defmacro when-bind* (forms &body body)
+  (with-labels
+      (build-expansion forms)
+    (build-expansion (forms)
+      (if (null forms)
+          `(progn ,@body)
+          `(when-bind (,(car forms))
+             ,(build-expansion (cdr forms)))))))
 
 (defmacro with-result ((result &optional initform) &body body)
   `(let ((,result ,initform))
@@ -74,13 +92,6 @@
 
 (defun megabytes->bytes (megabytes)
   (round (* megabytes 1024 1024)))
-
-(defmacro with-labels (form &body definitions)
-  `(labels ,definitions ,form))
-
-(indent:define-indentation
-    with-labels ((&whole 4 &rest 4) &rest (&whole 2 4 &rest 2)))
-(indent:initialize-slime)
 
 ;; -----------------------------------------------------------------------------
 ;; Primitive Types
@@ -336,7 +347,7 @@
           :recursively t
           :file-condition (fn-and mp3-p id3-p))
     (show-tag-header (file)
-      (if-let (id3-tag (read-id3 file))
+      (when-bind ((id3-tag (read-id3 file)))
         (with-slots (identifier major-version revision flags size) id3-tag
           (format t "~a ~d.~d ~8,'0b ~d bytes -- ~a~%"
                   identifier major-version revision flags size (enough-namestring file)))))))
@@ -354,10 +365,9 @@
             :recursively t
             :file-condition #'mp3-p)
       (count-version (file)
-        ;; FIXME: design and implement a multi-argument version of `if-let'
-        (if-let (tag (read-id3 file))
-          (if-let (major-version (assoc (major-version tag) version-counts))
-            (incf (cdr major-version))))))
+        (when-bind* ((tag (read-id3 file))
+                     (major-version (assoc (major-version tag) version-counts)))
+          (incf (cdr major-version)))))
     (loop for (version . count) in version-counts
           collect `(:version ,version :count ,count))))
 
@@ -372,7 +382,7 @@
     (string= "ID3" (read-value 'iso-8859-1-string in :length 3))))
 
 (defun show-mp3-metadata (filepath)
-  (if-let (id3 (read-id3 filepath))
+  (when-bind ((id3 (read-id3 filepath)))
     (format t "file: ~a ~%" (enough-namestring filepath))
     (show-id3-information id3))
   (format t "~%"))
@@ -410,7 +420,7 @@
   (getf plist :version))
 
 (defun frame-types (filepath)
-  (if-let (id3 (read-id3 filepath))
+  (when-bind ((id3 (read-id3 filepath)))
     (delete-duplicates
      (mapcar #'(lambda (frame) (list :id (id frame) :version (major-version id3)))
              (frames id3))
@@ -448,12 +458,10 @@
 
 (define-binary-type id3-encoded-string (encoding length terminator)
   (:reader (in)
-    (multiple-value-bind (type keyword arg)
-        (string-args encoding length terminator)
+    (multiple-value-bind (type keyword arg) (string-args encoding length terminator)
       (read-value type in keyword arg)))
   (:writer (out string)
-    (multiple-value-bind (type keyword arg)
-        (string-args encoding length terminator)
+    (multiple-value-bind (type keyword arg) (string-args encoding length terminator)
       (write-value type out string keyword arg))))
 
 (define-binary-class text-info-frame ()

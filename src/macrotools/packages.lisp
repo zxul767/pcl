@@ -2,4 +2,4 @@
 
 (defpackage :dev.zxul767.macrotools
   (:use :cl)
-  (:export :with-gensyms :once-only))
+  (:export :with-gensyms :once-only :condlet))

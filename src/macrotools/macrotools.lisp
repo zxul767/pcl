@@ -4,6 +4,8 @@
 (defun zip (&rest lists)
   (apply #'mapcar #'list lists))
 
+(defun as-keyword (symbol) (intern (string symbol) :keyword))
+
 (defun gensyms (n)
   (loop repeat n collect (gensym)))
 
@@ -83,3 +85,46 @@ the final expansion would be:
 ;; one nesting level by taking advantage of the fact that (let ((n <expr>) (g n)) ...)
 ;; rebinds `n' to a new value, but also binds `g' to the previous value of `n' at
 ;; the same time (think of it as `psetf')
+
+(defmacro condlet (clauses &body body)
+  "Execute `body' in the lexical context established by the bindings
+defined by the first clause whose condition evaluates to non-nil.
+
+Example:
+(condlet (((= 2 2) (x (+ 1 2)) (y (+ 3 4)))
+          ((= 1 3) (z (+ 5 6)))
+          (t (z 1) (y 2) (x 3)))
+  (list x y z))
+
+will end up being equivalent to:
+
+(let ((x (+ 1 2)) (y (+ 3 4)))
+  (list x y z))
+"
+  (with-gensyms (body-fn-name)
+    (with-labels
+        (let ((variables (extract-all-variables clauses)))
+          `(labels ((,body-fn-name (&key ,@variables)
+                      ,@body))
+             (cond ,@(mapcar #'build-cond-clause clauses))))
+
+      ;; clauses :: (clause+)
+      (extract-all-variables (clauses)
+        (extract-variables (mappend #'rest clauses)))
+
+      ;; clause :: (condition bind-form+)
+      (build-cond-clause (clause)
+        (let ((condition (first clause))
+              (bind-forms (rest clause)))
+          `(,condition
+            (let ,bind-forms
+              (,body-fn-name ,@(build-invocation-args bind-forms))))))
+
+      ;; bind-forms: ((variable expression) ...)
+      (build-invocation-args (bind-forms)
+        (loop for var in (extract-variables bind-forms)
+              append `(,(as-keyword var) ,var)))
+
+      (extract-variables (bind-forms)
+        (remove-duplicates
+         (mapcar #'first bind-forms))))))

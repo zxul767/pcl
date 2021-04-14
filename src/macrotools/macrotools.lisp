@@ -4,10 +4,43 @@
 (defun zip (&rest lists)
   (apply #'mapcar #'list lists))
 
-(defun as-keyword (symbol) (intern (string symbol) :keyword))
+(defun as-keyword (symbol)
+  "Gets or creates a keyword symbol with the same name as `symbol'"
+  (intern (string symbol) :keyword))
 
-(defun gensyms (n)
-  (loop repeat n collect (gensym)))
+(defun mappend (fn &rest lsts)
+  "Maps elements in list and finally appends all resulted lists."
+  (apply #'append (apply #'mapcar fn lsts)))
+
+(defmacro with-labels (form &body definitions)
+  `(labels ,definitions ,form))
+
+(indent:define-indentation
+    with-labels ((&whole 4 &rest 4) &rest (&whole 2 4 &rest 2)))
+(indent:initialize-slime)
+
+(defmacro when-bind (forms &body body)
+  (let ((variables (mapcar #'car forms)))
+    `(let ,forms
+       (when (and ,@variables)
+         ,@body))))
+
+(defmacro when-bind* (forms &body body)
+  (with-labels
+      (build-expansion forms)
+    (build-expansion (forms)
+      (if (null forms)
+          `(progn ,@body)
+          `(when-bind (,(car forms))
+             ,(build-expansion (cdr forms)))))))
+
+(defmacro with-result ((result &optional initform) &body body)
+  `(let ((,result ,initform))
+     ,@body
+     ,result))
+
+(defmacro prog-nil (&body body)
+  `(progn ,@body nil))
 
 (defmacro with-gensyms ((&rest symbols) &body body)
   "Wrap `body' within a new lexical environment where each symbol in `symbols'

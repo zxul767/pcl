@@ -10,4 +10,5 @@
   :description "A package for macro writing tools"
   :components
   ((:file "packages")
-   (:file "macrotools" :depends-on ("packages"))))
+   (:file "macrotools" :depends-on ("packages")))
+  :depends-on (:trivial-indent))

@@ -49,39 +49,9 @@
   `#'(lambda (&rest args)
        (and ,@(loop for fn in functions collect `(apply #',fn args)))))
 
-(defmacro with-labels (form &body definitions)
-  `(labels ,definitions ,form))
-
-(indent:define-indentation
-    with-labels ((&whole 4 &rest 4) &rest (&whole 2 4 &rest 2)))
-(indent:initialize-slime)
-
-(defmacro when-bind (forms &body body)
-  (let ((variables (mapcar #'car forms)))
-    `(let ,forms
-       (when (and ,@variables)
-         ,@body))))
-
-(defmacro when-bind* (forms &body body)
-  (with-labels
-      (build-expansion forms)
-    (build-expansion (forms)
-      (if (null forms)
-          `(progn ,@body)
-          `(when-bind (,(car forms))
-             ,(build-expansion (cdr forms)))))))
-
-(defmacro with-result ((result &optional initform) &body body)
-  `(let ((,result ,initform))
-     ,@body
-     ,result))
-
 (defmacro sort! (sequence predicate &rest args)
   (assert (symbolp sequence))
   `(setf ,sequence (sort ,sequence ,predicate ,@args)))
-
-(defmacro prog-nil (&body body)
-  `(progn ,@body nil))
 
 (defun human-readable-size (size-in-bytes)
   (with-output-to-string (stream)

@@ -64,17 +64,17 @@ Example:
 (LET ((#:A598 1) (#:|b-hint599| 2))
   (+ #:A598 #:|b-hint599| 2 3))
 "
-  (labels
-      ((extract-hint (symbol)
-         (or (and (consp symbol) (second symbol))
-             (string symbol)))
-       (extract-name (symbol)
-         (or (and (consp symbol) (first symbol))
-             symbol)))
-    (let ((hints (mapcar #'extract-hint symbols))
-          (names (mapcar #'extract-name symbols)))
-      `(let ,(loop for name in names for hint in hints collect `(,name (gensym ,hint)))
-         ,@body))))
+  (with-labels
+      (let ((hints (mapcar #'extract-hint symbols))
+            (names (mapcar #'extract-name symbols)))
+        `(let ,(loop for name in names for hint in hints collect `(,name (gensym ,hint)))
+           ,@body))
+    (extract-hint (symbol)
+      (or (and (consp symbol) (second symbol))
+          (string symbol)))
+    (extract-name (symbol)
+      (or (and (consp symbol) (first symbol))
+          symbol))))
 
 (defmacro once-only ((&rest names) &body body)
   "Generate a macro template that, upon expansion, will rewrite `body' to guarantee that:

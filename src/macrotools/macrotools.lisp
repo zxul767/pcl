@@ -170,13 +170,6 @@ will end up being equivalent to:
         (remove-duplicates
          (mapcar #'first bind-forms))))))
 
-(defun map-range (start end mapper)
-  (loop for i from start below end
-        collect (funcall mapper i)))
-
-(defun map0-n (n mapper)
-  (map-range 0 n mapper))
-
 (defmacro do-tuples/close (tuple source &body body)
   "Evaluate `body' N times with `tuple' bound to every M-sized contiguous
 subsequence of `source' (including 'wraparound' ones), where N is the size
@@ -215,8 +208,7 @@ NIL
                                     'rest))))))
 
     (build-tuple-call (body-fn-name tuple-size rest)
-      `(,body-fn-name ,@(map0-n tuple-size
-                                (fn (n) `(nth ,n ,rest)))))
+      `(,body-fn-name ,@(loop for n below tuple-size collect `(nth ,n ,rest))))
 
     (build-wraparound-tuple-calls (body-fn-name tuple-size source rest)
       (mapcar (fn (args) `(,body-fn-name ,@args))
@@ -226,5 +218,5 @@ NIL
       (let ((limit (- tuple-size 2)))
         (loop for i upto limit
               collect
-              (append (map-range i (1+ limit) (fn (n) `(nth ,n ,rest)))
-                      (map-range 0 (1+ i) (fn (n) `(nth ,n ,source)))))))))
+              (append (loop for n from i upto limit collect `(nth ,n ,rest))
+                      (loop for n from 0 upto i collect `(nth ,n ,source))))))))

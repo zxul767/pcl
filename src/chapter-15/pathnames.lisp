@@ -114,9 +114,9 @@ directory.
        (report (pathname)
          (if (funcall file-condition pathname)
              (report-unconditionally pathname)))
-       (walk (dirpath)
+       (walk (dirpath &key is-top-level)
          (when (funcall directory-condition dirpath)
-           (if report-directories
+           (if (and report-directories (not is-top-level))
                (report-unconditionally dirpath))
            (dolist (pathname (list-directory dirpath))
              ;; In this implementation, we can see why it is not a good idea to
@@ -127,8 +127,12 @@ directory.
              (if (file-p pathname)
                  (report pathname)
                  (if recursively ;; pathname is a directory
-                     (walk pathname)))))))
-    (walk (as-directory-pathname dirname))))
+                     (walk pathname)
+                     (report-unconditionally pathname)))))))
+    (let ((dirname (directory-p (as-directory-pathname dirname))))
+      (if dirname
+          (walk dirname :is-top-level t)
+          (error "'~a' is not a valid directory" dirname)))))
 
 (defun file-p (name)
   "Is `name' the name of an existing file, i.e. not a directory?"

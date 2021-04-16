@@ -1,8 +1,16 @@
 (in-package :dev.zxul767.macrotools)
 
-;; TODO: move to an itertools module?
-(defun zip (&rest lists)
-  (apply #'mapcar #'list lists))
+(defmacro fn (args &body body)
+  `#'(lambda ,args ,@body))
+
+;; The following functions are used within one or more macros, so they need
+;; to be available in the compilation "runtime image", just like other primitives
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun gensyms (count)
+    (loop repeat count collect (gensym)))
+
+  (defun zip (&rest lists)
+    (apply #'mapcar #'list lists)))
 
 (defun as-keyword (symbol)
   "Gets or creates a keyword symbol with the same name as `symbol'"
@@ -161,3 +169,56 @@ will end up being equivalent to:
       (extract-variables (bind-forms)
         (remove-duplicates
          (mapcar #'first bind-forms))))))
+
+(defun map-range (start end mapper)
+  (loop for i from start below end
+        collect (funcall mapper i)))
+
+(defun map0-n (n mapper)
+  (map-range 0 n mapper))
+
+(defmacro do-tuples/close (tuple sequence &body body)
+  "Repeatedly evaluate `body' with `tuple' bound to all n-sized, wraparound,
+contiguous subsequences of `sequence', where `n' is the size of `tuple'.
+
+For subsequences smaller than `n', the remaining elements are obtained by
+'wrapping around the sequence'. This behavior is what distinguishes this
+macro from `do-tuples/open'.
+
+Example:
+(do-tuples/close (x y z) '(a b c d)
+   (princ (list x y z)))
+=>
+(A B C)(B C D)(C D A)(D A B)
+NIL
+"
+  (assert (not (null tuple)) (tuple) "A non-empty tuple is required!")
+  (with-labels
+      (with-gensyms (body-fn-name)
+        (once-only (sequence)
+          `(when (nthcdr ,(1- (length tuple)) ,sequence)
+             (labels ((,body-fn-name ,tuple ,@body))
+               (do ((subsequence ,sequence (cdr subsequence)))
+                   ((not (nthcdr ,(1- (length tuple)) subsequence))
+                    ,@(build-wraparound-tuple-calls body-fn-name
+                                                    (length tuple)
+                                                    sequence
+                                                    'subsequence)
+                    nil)
+                 ,(build-tuple-call body-fn-name
+                                    (length tuple)
+                                    'subsequence))))))
+
+    (build-tuple-call (body-fn-name size subsequence)
+      `(,body-fn-name ,@(map0-n size (fn (n) `(nth ,n ,subsequence)))))
+
+    (build-wraparound-tuple-calls (body-fn-name size sequence subsequence)
+      (mapcar (fn (args) `(,body-fn-name ,@args))
+              (build-wraparound-tuple-call-args size sequence subsequence)))
+
+    (build-wraparound-tuple-call-args (size sequence subsequence)
+      (let ((limit (- size 2)))
+        (loop for i upto limit
+              collect
+              (append (map-range i (1+ limit) (fn (n) `(nth ,n ,subsequence)))
+                      (map-range 0 (1+ i) (fn (n) `(nth ,n ,sequence)))))))))

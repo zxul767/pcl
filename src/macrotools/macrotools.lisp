@@ -209,15 +209,16 @@ NIL
                                     (length tuple)
                                     'subsequence))))))
 
-    (build-tuple-call (body-fn-name size subsequence)
-      `(,body-fn-name ,@(map0-n size (fn (n) `(nth ,n ,subsequence)))))
+    (build-tuple-call (body-fn-name tuple-size subsequence)
+      `(,body-fn-name ,@(map0-n tuple-size
+                                (fn (n) `(nth ,n ,subsequence)))))
 
-    (build-wraparound-tuple-calls (body-fn-name size sequence subsequence)
+    (build-wraparound-tuple-calls (body-fn-name tuple-size sequence subsequence)
       (mapcar (fn (args) `(,body-fn-name ,@args))
-              (build-wraparound-tuple-call-args size sequence subsequence)))
+              (build-wraparound-tuple-call-args tuple-size sequence subsequence)))
 
-    (build-wraparound-tuple-call-args (size sequence subsequence)
-      (let ((limit (- size 2)))
+    (build-wraparound-tuple-call-args (tuple-size sequence subsequence)
+      (let ((limit (- tuple-size 2)))
         (loop for i upto limit
               collect
               (append (map-range i (1+ limit) (fn (n) `(nth ,n ,subsequence)))

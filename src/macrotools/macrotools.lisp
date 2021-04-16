@@ -177,13 +177,15 @@ will end up being equivalent to:
 (defun map0-n (n mapper)
   (map-range 0 n mapper))
 
-(defmacro do-tuples/close (tuple sequence &body body)
-  "Repeatedly evaluate `body' with `tuple' bound to all n-sized, wraparound,
-contiguous subsequences of `sequence', where `n' is the size of `tuple'.
+(defmacro do-tuples/close (tuple source &body body)
+  "Evaluate `body' N times with `tuple' bound to every M-sized contiguous
+subsequence of `source' (including 'wraparound' ones), where N is the size
+of `source' and M is the size of `tuple'.
 
-For subsequences smaller than `n', the remaining elements are obtained by
-'wrapping around the sequence'. This behavior is what distinguishes this
-macro from `do-tuples/open'.
+Wrapround subsequences happen when the number of remaining elements to
+process from `source' is smaller than M, so we need to wrap around and
+take elements from the start of `source'. Including wraparound
+subsequences is what distinguishes this macro from `do-tuples/open'.
 
 Example:
 (do-tuples/close (x y z) '(a b c d)
@@ -195,31 +197,34 @@ NIL
   (assert (not (null tuple)) (tuple) "A non-empty tuple is required!")
   (with-labels
       (with-gensyms (body-fn-name)
-        (once-only (sequence)
-          `(when (nthcdr ,(1- (length tuple)) ,sequence)
+        (once-only (source)
+          `(when (nthcdr ,(1- (length tuple)) ,source)
              (labels ((,body-fn-name ,tuple ,@body))
-               (do ((subsequence ,sequence (cdr subsequence)))
-                   ((not (nthcdr ,(1- (length tuple)) subsequence))
+               ;; It seems like `rest' cannot suffer from variable capture
+               ;; problems, given the structure of the expansion code, so
+               ;; we don't need a gensym'ed symbol for it
+               (do ((rest ,source (cdr rest)))
+                   ((not (nthcdr ,(1- (length tuple)) rest))
                     ,@(build-wraparound-tuple-calls body-fn-name
                                                     (length tuple)
-                                                    sequence
-                                                    'subsequence)
+                                                    source
+                                                    'rest)
                     nil)
                  ,(build-tuple-call body-fn-name
                                     (length tuple)
-                                    'subsequence))))))
+                                    'rest))))))
 
-    (build-tuple-call (body-fn-name tuple-size subsequence)
+    (build-tuple-call (body-fn-name tuple-size rest)
       `(,body-fn-name ,@(map0-n tuple-size
-                                (fn (n) `(nth ,n ,subsequence)))))
+                                (fn (n) `(nth ,n ,rest)))))
 
-    (build-wraparound-tuple-calls (body-fn-name tuple-size sequence subsequence)
+    (build-wraparound-tuple-calls (body-fn-name tuple-size source rest)
       (mapcar (fn (args) `(,body-fn-name ,@args))
-              (build-wraparound-tuple-call-args tuple-size sequence subsequence)))
+              (build-wraparound-tuple-call-args tuple-size source rest)))
 
-    (build-wraparound-tuple-call-args (tuple-size sequence subsequence)
+    (build-wraparound-tuple-call-args (tuple-size source rest)
       (let ((limit (- tuple-size 2)))
         (loop for i upto limit
               collect
-              (append (map-range i (1+ limit) (fn (n) `(nth ,n ,subsequence)))
-                      (map-range 0 (1+ i) (fn (n) `(nth ,n ,sequence)))))))))
+              (append (map-range i (1+ limit) (fn (n) `(nth ,n ,rest)))
+                      (map-range 0 (1+ i) (fn (n) `(nth ,n ,source)))))))))

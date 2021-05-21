@@ -480,10 +480,12 @@
 (def-id3-getter genre "TCO" "TCON")
 
 (defun translated-genre (id3)
-  (let ((genre (genre id3)))
-    (if (and genre (char= #\( (char genre 0)))
-        (translate-v1-genre genre)
-        genre)))
+  (when-bind ((genre (genre id3)))
+    (let ((genre (string-trim '(#\Space) genre)))
+      (if (and (> (length genre) 0)
+               (char= #\( (char genre 0)))
+          (translate-v1-genre genre)
+          genre))))
 
 (defun translate-v1-genre (genre)
   (aref *id3-v1-genres* (parse-integer genre :start 1 :junk-allowed t)))

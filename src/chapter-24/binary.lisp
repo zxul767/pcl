@@ -85,8 +85,6 @@ stack) currently being read/written."
 ;; -----------------------------------------------------------------------------
 ;; General Helper Functions & Macros
 ;; -----------------------------------------------------------------------------
-(defun as-keyword (symbol) (intern (string symbol) :keyword))
-
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun assert-all (predicate sequence)
     (dolist (item sequence)

@@ -1,18 +1,10 @@
 (in-package :dev.zxul767.mp3-database)
 
-;; TODO: this is duplicated now in two packages, consolidate!
-(defmacro fn-and (&rest functions)
-  `#'(lambda (&rest args)
-       (and ,@(loop for fn in functions collect `(apply #',fn args)))))
+(defparameter *default-table-size* 1000)
 
 (defclass table ()
   ((rows :accessor rows :initarg :rows :initform (make-rows))
    (schema :accessor schema :initarg :schema)))
-
-(defparameter *default-table-size* 1000)
-
-(defun make-rows (&optional (size *default-table-size*))
-  (make-array size :adjustable t :fill-pointer 0))
 
 (defclass column ()
   ((name
@@ -37,6 +29,16 @@
     :initarg :value-normalizer
     :initform #'(lambda (value column) (declare (ignore column)) value))))
 
+(defclass interned-values-column (column)
+  ((interned-values
+    :reader interned-values
+    :initform (make-hash-table :test #'equal))
+   (equality-predicate :initform #'eql)
+   (value-normalizer :initform #'intern-for-column)))
+
+(defun make-rows (&optional (size *default-table-size*))
+  (make-array size :adjustable t :fill-pointer 0))
+
 (defgeneric make-column (name type &optional default-value))
 
 (defmethod make-column (name (type (eql 'string)) &optional default-value)
@@ -56,27 +58,6 @@
    :equality-predicate #'=
    :default-value default-value))
 
-(defun ensure-non-nullable (value column)
-  (or value (error "Column ~a can't be null" (name column))))
-
-(defun normalize-string (value column)
-  (string-downcase
-   (string-trim '(#\Space)
-                (ensure-non-nullable value column))))
-
-(defclass interned-values-column (column)
-  ((interned-values
-    :reader interned-values
-    :initform (make-hash-table :test #'equal))
-   (equality-predicate :initform #'eql)
-   (value-normalizer :initform #'intern-for-column)))
-
-(defun intern-for-column (value column)
-  (let ((hash (interned-values column))
-        (value (normalize-string value column)))
-    (or (gethash value hash)
-        (setf (gethash value hash) value))))
-
 (defmethod make-column (name (type (eql 'interned-string)) &optional default-value)
   (make-instance
    'interned-values-column
@@ -87,38 +68,19 @@
 (defun make-schema (spec)
   (mapcar #'(lambda (column-spec) (apply #'make-column column-spec)) spec))
 
+(defun create-mp3-table ()
+  (make-instance 'table :schema (create-mp3-schema)))
+
 (defun create-mp3-schema ()
   (make-schema
    '((:file string)
      (:genre interned-string "Unknown")
      (:artist interned-string "Unknown")
      (:album interned-string "Unknown")
-     (:song string)
+     (:song string "")
      (:track number 0)
      (:year number 0)
      (:id3-size number))))
-
-(defparameter *mp3s* (create-mp3-table))
-
-(defun create-mp3-table ()
-  (make-instance 'table :schema (create-mp3-schema)))
-
-(defun insert-row (names-and-values table)
-  (when names-and-values
-    (vector-push-extend (normalize-row names-and-values (schema table))
-                        (rows table))))
-
-(defun normalize-row (names-and-values schema)
-  (loop
-    for column in schema
-    for name = (name column)
-    for value = (or (getf names-and-values name)
-                    (default-value column))
-    collect name
-    collect (normalize-for-column value column)))
-
-(defun normalize-for-column (value column)
-  (funcall (value-normalizer column) value column))
 
 (defun file->row (file)
   (when-bind ((id3 (read-id3 file)))
@@ -127,20 +89,10 @@
      :genre (translated-genre id3)
      :artist (artist id3)
      :album (album id3)
-     :song (or (song id3) "")
-     :track (parse-track (track id3))
-     :year (parse-year (year id3))
+     :song (song id3)
+     :track (try-parse-track (track id3))
+     :year (try-parse-year (year id3))
      :id3-size (size id3))))
-
-(defun try-parse-integer (text &rest keywords &key &allow-other-keys)
-  (when-bind ((text (and text (string-trim '(#\Space) text))))
-    (apply #'parse-integer text :junk-allowed t keywords)))
-
-(defun parse-track (track)
-  (try-parse-integer track :end (position #\/ track)))
-
-(defun parse-year (year)
-  (try-parse-integer year))
 
 (defun load-database (directory database)
   (delete-all-rows database)
@@ -172,38 +124,98 @@
       (setf rows (distinct-rows rows schema)))
     (make-instance 'table :rows rows :schema schema)))
 
+(defun in (column-name table)
+  (let ((test (equality-predicate (find-column column-name (schema table))))
+        (values (map 'list #'(lambda (row) (column-value row column-name)) (rows table))))
+    #'(lambda (row)
+        (member (column-value row column-name) values :test test))))
+
+(defun matching (table &rest names-and-values)
+  (let ((matchers (column-matchers (schema table) names-and-values)))
+    #'(lambda (row)
+        (every #'(lambda (matcher) (funcall matcher row)) matchers))))
+
+(defun delete-all-rows (table)
+  (setf (rows table) (make-rows *default-table-size*)))
+
+(defun table-size (table)
+  (length (rows table)))
+
+(defun column-names (table)
+  (mapcar #'name (schema table)))
+
+(defun ensure-non-nullable (value column)
+  (or value (error "Column ~a can't be null" (name column))))
+
+(defun normalize-string (value column)
+  (string-downcase
+   (trim-whitespace
+    (ensure-non-nullable value column))))
+
+(defun intern-for-column (value column)
+  (let ((hash (interned-values column))
+        (value (normalize-string value column)))
+    (or (gethash value hash)
+        (setf (gethash value hash) value))))
+
+(defun insert-row (names-and-values table)
+  (when names-and-values
+    (vector-push-extend (normalize-row names-and-values (schema table))
+                        (rows table))))
+
+(defun normalize-row (names-and-values schema)
+  (loop
+    for column in schema
+    for name = (name column)
+    for value = (or (column-value names-and-values name)
+                    (default-value column))
+    collect name
+    collect (normalize-for-column value column)))
+
+(defun normalize-for-column (value column)
+  (funcall (value-normalizer column) value column))
+
+(defun try-parse-integer (text &rest keywords &key &allow-other-keys)
+  (when-bind ((text (and text (trim-whitespace text))))
+    (apply #'parse-integer text :junk-allowed t keywords)))
+
+(defun try-parse-track (track)
+  (try-parse-integer track :end (position #\/ track)))
+
+(defun try-parse-year (year)
+  (try-parse-integer year))
+
+(defun trim-whitespace (string)
+  (string-trim '(#\Space) string))
+
 (defun sorted-rows (rows schema order-by)
   (sort (copy-seq rows) (row-comparator order-by schema)))
 
 (defun row-equality-tester (schema)
-  (let ((names (mapcar #'name schema))
-        (tests (mapcar #'equality-predicate schema)))
-    #'(lambda (a b)
-        (loop for name in names and test in tests
-              always (funcall test (getf a name) (getf b name))))))
+  (let ((column-names (mapcar #'name schema))
+        (equality-tests (mapcar #'equality-predicate schema)))
+    #'(lambda (row-a row-b)
+        (loop for column-name in column-names and equals in equality-tests
+              always (funcall equals
+                              (column-value row-a column-name)
+                              (column-value row-b column-name))))))
 
 (defun row-comparator (column-names schema)
-  (let ((comparators (mapcar #'comparator (extract-schema column-names schema))))
-    #'(lambda (a b)
+  (let ((column-comparators (mapcar #'comparator (extract-schema column-names schema))))
+    #'(lambda (row-a row-b)
         (loop
-          for name in column-names
-          for comparator in comparators
-          for a-value = (getf a name)
-          for b-value = (getf b name)
-          when (funcall comparator a-value b-value)
+          for column-name in column-names
+          for column-comparator in column-comparators
+          for a-value = (column-value row-a column-name)
+          for b-value = (column-value row-b column-name)
+          when (funcall column-comparator a-value b-value)
             return t
-          when (funcall comparator b-value a-value)
+          when (funcall column-comparator b-value a-value)
             return nil
           finally (return nil)))))
 
 (defun restrict-rows (rows where)
   (remove-if-not where rows))
-
-(defun matching (table &rest names-and-values)
-  "Build a 'where' function that matches rows with the given column values."
-  (let ((matchers (column-matchers (schema table) names-and-values)))
-    #'(lambda (row)
-        (every #'(lambda (matcher) (funcall matcher row)) matchers))))
 
 (defun column-matchers (schema names-and-values)
   (loop for (name value) on names-and-values by #'cddr
@@ -213,7 +225,7 @@
   (let ((name (name column))
         (predicate (equality-predicate column))
         (normalized-value (normalize-for-column value column)))
-    #'(lambda (row) (funcall predicate (getf row name) normalized-value))))
+    #'(lambda (row) (funcall predicate (column-value row name) normalized-value))))
 
 (defun extract-schema (column-names schema)
   (loop for name in column-names collect (find-column name schema)))
@@ -234,62 +246,105 @@
 (defun extractor (schema)
   (let ((names (mapcar #'name schema)))
     #'(lambda (row)
-        (loop for name in names collect name collect (getf row name)))))
+        (loop for name in names collect name collect (column-value row name)))))
 
 (defmacro do-rows ((row table) &body body)
   `(loop for ,row across (rows ,table) do ,@body))
 
 (defmacro with-column-values ((&rest vars) row &body body)
-  (once-only (row)
-    `(let ,(column-bindings vars row) ,@body)))
+  (with-labels
+      (once-only (row)
+        `(let ,(column-bindings vars row) ,@body))
 
-(defun column-bindings (vars row)
-  (loop for var in vars collect `(,var (column-value ,row ,(as-keyword var)))))
-
-(defun as-keyword (symbol)
-  (intern (symbol-name symbol) :keyword))
+    (column-bindings (vars row)
+      (loop for var in vars collect `(,var (column-value ,row ,(as-keyword var)))))))
 
 (defun column-value (row column-name)
   (getf row column-name))
 
-(defun delete-all-rows (table)
-  (setf (rows table) (make-rows *default-table-size*)))
+(defun is-categorical (column)
+  (slot-exists-p column 'interned-values))
 
-(defun table-size (table)
-  (length (rows table)))
+(defun is-numerical (column)
+  (and (eq (comparator column) #'<)
+       (eq (equality-predicate column) #'=)))
 
 ;; ----------------------------------------------------------------------------
 ;; testing ground
 ;; ----------------------------------------------------------------------------
 (defun enumerate-column-values (column-name schema)
   (when-bind ((column (find-column column-name schema)))
-    (unless (slot-exists-p column 'interned-values)
+    (unless (is-categorical column)
       (error "Column ~a does not have a fixed set of values!" column))
     (with-slots (interned-values) column
       (loop for key being each hash-key of interned-values collect key))))
 
-(defun enumerate-artists (schema)
-  (enumerate-column-values :artist schema))
+(defun enumerate-artists (table)
+  (enumerate-column-values :artist (schema table)))
 
-(defun enumerate-genres (schema)
-  (enumerate-column-values :genre schema))
+(defun enumerate-genres (table)
+  (enumerate-column-values :genre (schema table)))
 
-(defun run-query (predicate)
-  (print-rows (select :columns '(:song :artist :album)
-                      :from *mp3s*
+(defun run-query (table predicate)
+  (print-table (select :columns '(:song :artist :album)
+                      :from table
                       :where predicate
                       :distinct t
                       :order-by '(:album :song))))
 
-;; FIXME: generalize to print all columns in the schema associated with `rows'
-;;        (which happens to be a table, so it always has a schema object attached)
-(defun print-rows (rows)
-  (let ((output-format "~40a|~20a|~20a~%"))
-    (format t output-format "SONG" "ARTIST" "ALBUM")
-    (format t "~80,,,'-@a~%" "")
-    (do-rows (row rows)
-      (with-column-values (song artist album) row
-        (format t output-format song artist album)))
-    (when (> (table-size rows) 10)
-      (format t "~80,,,'-@a~%" "")
-      (format t output-format "SONG" "ARTIST" "ALBUM"))))
+(defun print-table (table)
+  (unless (= (table-size table) 0)
+    (let* ((column-widths (estimate-column-widths table))
+           (row-layout (create-row-layout column-widths)))
+      (apply #'format t row-layout (plist-keys column-widths))
+      (format t "~a~%" (str:repeat (total-width column-widths) "-"))
+      (do-rows (row table)
+        (apply #'format t row-layout (plist-values row))))))
+
+(defun estimate-column-widths (table)
+  (loop for column-name in (column-names table)
+        collect column-name
+        collect (estimate-column-width column-name table)))
+
+;; TODO: consider optimizing this by doing a single pass over the rows;
+;;       the current implementation traverses all rows for each 'string'
+;;       column present in `table'
+(defun estimate-column-width (column-name table)
+  (when-bind ((column (find-column column-name (schema table))))
+    (1+
+     (cond
+       ((is-categorical column)
+        (longest-string-length (hash-keys (interned-values column))))
+       ((is-numerical column)
+        (ceiling (log (largest-number column-name table) 10)))
+       (t
+        (longest-length column-name table))))))
+
+(defun create-row-layout (column-widths)
+  (loop for (_ value) on column-widths by #'cddr
+        collecting (format nil "~~~aa" value) into results
+        finally (return (format nil "~a~~%" (str:join "|" results)))))
+
+(defun total-width (widths)
+  (loop for (column width) on widths by #'cddr
+        summing width))
+
+(defun plist-values (plist)
+  (loop for (_ value) on plist by #'cddr collect value))
+
+(defun plist-keys (plist)
+  (loop for (key _) on plist by #'cddr collect key))
+
+(defun hash-keys (hash-table)
+  (loop for key being the hash-keys of hash-table collect key))
+
+(defun largest-number (column-name table)
+  (reduce #'max (rows table)
+          :key #'(lambda (row) (column-value row column-name))))
+
+(defun longest-length (column-name table)
+  (reduce #'max (rows table)
+          :key #'(lambda (row) (length (column-value row column-name)))))
+
+(defun longest-string-length (strings)
+  (reduce #'max strings :key #'length))

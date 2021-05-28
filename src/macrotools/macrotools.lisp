@@ -1,10 +1,13 @@
 (in-package :dev.zxul767.macrotools)
 
-(defmacro fn (args &body body)
-  `#'(lambda ,args ,@body))
+(defmacro fn-and (&rest functions)
+  `#'(lambda (&rest args)
+       (and ,@(loop for fn in functions collect `(apply #',fn args)))))
 
 ;; The following functions are used within one or more macros, so they need
-;; to be available in the compilation "runtime image", just like other primitives
+;; to be available in the compilation "runtime image", just like other
+;; primitives, if such macros are used in other functions or macros being
+;; compiled here or in another file that depends on this one.
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun gensyms (count)
     (loop repeat count collect (gensym)))
@@ -16,9 +19,9 @@
   "Gets or creates a keyword symbol with the same name as `symbol'"
   (intern (string symbol) :keyword))
 
-(defun mappend (fn &rest lsts)
+(defun mappend (mapper &rest lists)
   "Maps elements in list and finally appends all resulted lists."
-  (apply #'append (apply #'mapcar fn lsts)))
+  (apply #'append (apply #'mapcar mapper lists)))
 
 (defmacro with-labels (form &body definitions)
   `(labels ,definitions ,form))
@@ -189,29 +192,29 @@ NIL
 "
   (assert (not (null tuple)) (tuple) "A non-empty tuple is required!")
   (with-labels
-      (with-gensyms (body-fn-name)
+      (with-gensyms (body-fn-name rest)
         (once-only (source)
           `(when (nthcdr ,(1- (length tuple)) ,source)
              (labels ((,body-fn-name ,tuple ,@body))
                ;; It seems like `rest' cannot suffer from variable capture
                ;; problems, given the structure of the expansion code, so
                ;; we don't need a gensym'ed symbol for it
-               (do ((rest ,source (cdr rest)))
-                   ((not (nthcdr ,(1- (length tuple)) rest))
+               (do ((,rest ,source (cdr ,rest)))
+                   ((not (nthcdr ,(1- (length tuple)) ,rest))
                     ,@(build-wraparound-tuple-calls body-fn-name
                                                     (length tuple)
                                                     source
-                                                    'rest)
+                                                    rest)
                     nil)
                  ,(build-tuple-call body-fn-name
                                     (length tuple)
-                                    'rest))))))
+                                    rest))))))
 
     (build-tuple-call (body-fn-name tuple-size rest)
       `(,body-fn-name ,@(loop for n below tuple-size collect `(nth ,n ,rest))))
 
     (build-wraparound-tuple-calls (body-fn-name tuple-size source rest)
-      (mapcar (fn (args) `(,body-fn-name ,@args))
+      (mapcar #'(lambda (args) `(,body-fn-name ,@args))
               (build-wraparound-tuple-call-args tuple-size source rest)))
 
     (build-wraparound-tuple-call-args (tuple-size source rest)

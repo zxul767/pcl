@@ -135,6 +135,58 @@
     #'(lambda (row)
         (every #'(lambda (matcher) (funcall matcher row)) matchers))))
 
+(defun delete-rows (&key from where)
+  (loop
+    with rows = (rows from)
+    with store-index = 0
+    for read-index from 0
+    for row across rows
+    do (setf (aref rows read-index) nil)
+    unless (funcall where row) do
+      (setf (aref rows store-index) row)
+      (incf store-index)
+    finally (setf (fill-pointer rows) store-index)))
+
+(defun sort-rows (table &rest column-names)
+  (setf (rows table)
+        (sort (rows table) (row-comparator column-names (schema table))))
+  table)
+
+(defun shuffle-table (table)
+  (nshuffle-vector (rows table))
+  table)
+
+;; FIXME: this is now duplicated in the `spam' package as well; move to common
+;; utilities package
+(defun nshuffle-vector (vector)
+  (loop for i downfrom (1- (length vector)) to 1
+        for j = (random (1+ i))
+        do (unless (= i j)
+             (rotatef (aref vector i) (aref vector j))))
+  vector)
+
+(defun shuffle-vector (vector)
+  (nshuffle-vector (copy-seq vector)))
+
+(defun random-selection (table n)
+  (make-instance
+   'table
+   :schema (schema table)
+   :rows (nshuffle-vector (random-sample (rows table) n))))
+
+(defun random-sample (vector n)
+  "Based on Algorithm S from Knuth. TAOCP, vol. 2. p. 142"
+  (loop with selected = (make-array n :fill-pointer 0)
+        for index from 0
+        do
+           (loop
+             with to-select = (- n (length selected))
+             for remaining = (- (length vector) index)
+             while (>= (* remaining (random 1.0)) to-select)
+             do (incf index))
+           (vector-push (aref vector index) selected)
+        when (= (length selected) n) return selected))
+
 (defun delete-all-rows (table)
   (setf (rows table) (make-rows *default-table-size*)))
 

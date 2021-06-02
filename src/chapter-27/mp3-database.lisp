@@ -98,7 +98,8 @@
   (delete-all-rows database)
   ;; the interned values in some of the columns are populated dynamically
   ;; so we need to recreate the schema to get rid of the old values
-  (setf (schema database) (create-mp3-schema))
+  (setf *mp3-schema* (create-mp3-schema))
+  (setf (schema database) *mp3-schema*)
   (let ((count 0))
     (walk-directory
      directory
@@ -123,6 +124,19 @@
     (when distinct
       (setf rows (distinct-rows rows schema)))
     (make-instance 'table :rows rows :schema schema)))
+
+(defun remove-columns (table columns)
+  (if (not columns)
+      table
+      (let ((rows (rows table))
+            (schema (schema table)))
+        (setf schema (remove-columns-from-schema (ensure-list columns) schema))
+        (setf rows (project-columns rows schema))
+        (make-instance 'table :rows rows :schema schema))))
+
+(defun remove-columns-from-schema (column-names schema)
+  (remove-if #'(lambda (column) (member (name column) column-names))
+             schema))
 
 (defun in (column-name table)
   (let ((test (equality-predicate (find-column column-name (schema table))))
@@ -192,6 +206,9 @@
 
 (defun table-size (table)
   (length (rows table)))
+
+(defun nth-row (n table)
+  (aref (rows table) n))
 
 (defun column-names (table)
   (mapcar #'name (schema table)))
@@ -300,8 +317,12 @@
     #'(lambda (row)
         (loop for name in names collect name collect (column-value row name)))))
 
-(defmacro do-rows ((row table) &body body)
-  `(loop for ,row across (rows ,table) do ,@body))
+(defmacro do-rows ((row table &key max-rows) &body body)
+  (once-only (max-rows table)
+    `(loop for ,row across (subseq (rows ,table) 0 ,max-rows) do ,@body)))
+
+(defun map-rows (fn table)
+  (loop for row across (rows table) collect (funcall fn row)))
 
 (defmacro with-column-values ((&rest vars) row &body body)
   (with-labels
@@ -344,33 +365,52 @@
                       :distinct t
                       :order-by '(:album :song))))
 
-(defun print-table (table)
+(defparameter *default-rows-for-sample-display* 5)
+
+(defun print-table (table &key exclude-columns include-all-rows)
   (unless (= (table-size table) 0)
-    (let* ((column-widths (estimate-column-widths table))
+    (let* ((table (remove-columns table exclude-columns))
+           (max-rows (calculate-rows-count table include-all-rows))
+           (column-widths (estimate-column-widths table :max-rows max-rows))
            (row-layout (create-row-layout column-widths)))
+      (format t "Showing ~d of ~d rows~2%" max-rows (table-size table))
       (apply #'format t row-layout (plist-keys column-widths))
       (format t "~a~%" (str:repeat (total-width column-widths) "-"))
-      (do-rows (row table)
-        (apply #'format t row-layout (plist-values row))))))
+      (do-rows (row table :max-rows max-rows)
+        (apply #'format t row-layout (plist-values row)))
+      (if (null include-all-rows)
+          (format t "...~%")))))
 
-(defun estimate-column-widths (table)
+(defun calculate-rows-count (table show-all-rows)
+  (let ((max-rows (table-size table)))
+    (if show-all-rows
+        max-rows
+        (min max-rows *default-rows-for-sample-display*))))
+
+(defun estimate-column-widths (table &key max-rows)
   (loop for column-name in (column-names table)
         collect column-name
-        collect (estimate-column-width column-name table)))
+        collect (estimate-column-width column-name table :max-rows max-rows)))
 
 ;; TODO: consider optimizing this by doing a single pass over the rows;
 ;;       the current implementation traverses all rows for each 'string'
 ;;       column present in `table'
-(defun estimate-column-width (column-name table)
+(defun estimate-column-width (column-name table &key max-rows)
   (when-bind ((column (find-column column-name (schema table))))
     (1+
      (cond
        ((is-categorical column)
-        (longest-string-length (hash-keys (interned-values column))))
+        (max
+         (length (symbol-name column-name))
+         (longest-string-length (hash-keys (interned-values column)))))
        ((is-numerical column)
-        (ceiling (log (largest-number column-name table) 10)))
+        (max
+         (length (symbol-name column-name))
+         (ceiling (log (largest-number column-name table) 10))))
        (t
-        (longest-length column-name table))))))
+        (max
+         (length (symbol-name column-name))
+         (longest-length column-name table :max-rows max-rows)))))))
 
 (defun create-row-layout (column-widths)
   (loop for (_ value) on column-widths by #'cddr
@@ -379,7 +419,8 @@
 
 (defun total-width (widths)
   (loop for (column width) on widths by #'cddr
-        summing width))
+        summing width into total-width
+        finally (return (+ total-width (/ (length widths) 2)))))
 
 (defun plist-values (plist)
   (loop for (_ value) on plist by #'cddr collect value))
@@ -394,9 +435,13 @@
   (reduce #'max (rows table)
           :key #'(lambda (row) (column-value row column-name))))
 
-(defun longest-length (column-name table)
-  (reduce #'max (rows table)
+(defun longest-length (column-name table &key max-rows)
+  (reduce #'max (subseq (rows table) 0 max-rows)
           :key #'(lambda (row) (length (column-value row column-name)))))
 
 (defun longest-string-length (strings)
   (reduce #'max strings :key #'length))
+
+(defparameter *mp3-table* (create-mp3-table))
+
+(defparameter *mp3-schema* (create-mp3-schema))

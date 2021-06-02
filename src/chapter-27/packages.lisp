@@ -7,12 +7,13 @@
   (:export
    :*default-table-size*
    :*mp3-schema*
-   :*mp3s*
+   :*mp3-table*
    :column
    :column-value
    :delete-all-rows
    :delete-rows
    :do-rows
+   :ensure-non-nullable
    :extract-schema
    :in
    :insert-row
@@ -21,8 +22,8 @@
    :make-schema
    :map-rows
    :matching
-   :not-nullable
    :nth-row
+   :print-table
    :random-selection
    :schema
    :select

@@ -9,8 +9,8 @@
    :file
    :title
    :id3-size
-   :find-song-source
+   :find-songs-source
    :current-song
    :still-current-p
    :maybe-move-to-next-song
-   :*song-source-type*))
+   :*songs-source-type*))

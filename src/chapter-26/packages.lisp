@@ -5,4 +5,6 @@
    :common-lisp
    :net.aserve
    :dev.zxul767.html
-   :dev.zxul767.macrotools))
+   :dev.zxul767.macrotools)
+  (:export
+   :define-html-handler))

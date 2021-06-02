@@ -16,6 +16,19 @@
   (and (not (null value))
        (parse-integer value :junk-allowed t)))
 
+(defmethod parse-as ((type (eql 'keyword)) value)
+  (and (plusp (length value))
+       (intern (string-upcase value) :keyword)))
+
+(defmethod parse-as ((type (eql 'base64-list)) value)
+  (let ((obj (base64->obj value)))
+    (if (listp obj) obj)))
+
+;; TODO: move to (nonexisting) `data-conversion' package
+(defun base64->obj (string)
+  (ignore-errors
+   (with-safe-io-syntax (read-from-string (base64-decode string)))))
+
 (defun get-cookie-value (name request)
   (cdr (assoc name (get-cookie-values request) :test #'string=)))
 

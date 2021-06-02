@@ -15,6 +15,11 @@
   (defun zip (&rest lists)
     (apply #'mapcar #'list lists)))
 
+(defmacro with-safe-io-syntax (&body body)
+  `(with-standard-io-syntax
+     (let ((*read-eval* nil))
+       ,@body)))
+
 (defun as-keyword (symbol)
   "Gets or creates a keyword symbol with the same name as `symbol'"
   (intern (string symbol) :keyword))

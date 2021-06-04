@@ -45,10 +45,6 @@
 ;; -----------------------------------------------------------------------------
 ;; General Utilities & Macros
 ;; -----------------------------------------------------------------------------
-(defmacro fn-and (&rest functions)
-  `#'(lambda (&rest args)
-       (and ,@(loop for fn in functions collect `(apply #',fn args)))))
-
 (defmacro sort! (sequence predicate &rest args)
   (assert (symbolp sequence))
   `(setf ,sequence (sort ,sequence ,predicate ,@args)))

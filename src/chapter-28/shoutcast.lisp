@@ -54,7 +54,7 @@ value returned by `current-song'"))
 (defun add-file-to-songs (filepath)
   (let ((song (file->song filepath)))
     (if song
-        (vector-push-extend (file->song filepath) (songs *songs-queue*))
+        (vector-push-extend song (songs *songs-queue*))
         (logger "Cannot add ~a (unsupported file or missing metadata)" filepath))))
 
 (defun song-information (id3-tag)
@@ -87,7 +87,6 @@ value returned by `current-song'"))
     (prepare-icy-response request *shoutcast-metadata-interval-in-bytes*)
     (let ((wants-metadata-p (header-slot-value request :icy-metadata)))
       (logger "client wants metadata? ~a" wants-metadata-p)
-      (logger "response headers: ~a" (net.aserve::request-reply-headers request))
       (with-http-body (request entity)
         (stream-songs
          (request-socket request)
@@ -138,7 +137,7 @@ value returned by `current-song'"))
 (defun stream-current-song
     (stream songs-source next-metadata-interval metadata-interval)
   (when-bind ((song (current-song songs-source)))
-    (logger "streaming ~a -- ~a" (title song) (pathname-name (file song)))
+    (logger "streaming ~a -- ~a" (title song) (file song))
     (let ((metadata (make-icy-metadata (title song) (file song))))
       (setf next-metadata-interval
             (stream-mp3-file

@@ -217,9 +217,8 @@
   (or value (error "Column ~a can't be null" (name column))))
 
 (defun normalize-string (value column)
-  (string-downcase
-   (trim-whitespace
-    (ensure-non-nullable value column))))
+  (trim-whitespace
+   (ensure-non-nullable value column)))
 
 (defun intern-for-column (value column)
   (let ((hash (interned-values column))

@@ -10,5 +10,7 @@
   :description "MP3 web browser"
   :components
   ((:file "packages")
-   (:file "mp3-browser" :depends-on ("packages")))
+   (:file "mp3-browser" :depends-on ("packages"))
+   (:static-file "mp3-browser.css")
+   (:static-file "silentpacket.mp3"))
   :depends-on (:aserve :macrotools :id3v2 :shoutcast :web :mp3-database :html))

@@ -1,6 +1,6 @@
-body                           { font-size: 10pt; font-family: sans-serif; }
+body                           { font-size: 12pt; font-family: sans-serif; }
 h1.title                       { font-size: 18pt; }
-table.playlist                 { width: 100%; font-size: 8pt; }
+table.playlist                 { width: 100%; font-size: 10pt; }
 table.playlist tr              { background-color: #dddddd; }
 table.playlist tr.normal       { background-color: #ffddff; }
 table.playlist tr.now-playing  { background-color: #ccbbee; }

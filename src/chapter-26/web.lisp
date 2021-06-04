@@ -20,7 +20,7 @@
   (and (plusp (length value))
        (intern (string-upcase value) :keyword)))
 
-(defmethod parse-as ((type (eql 'base64-list)) value)
+(defmethod parse-as ((type (eql :base64)) value)
   (let ((obj (base64->obj value)))
     (if (listp obj) obj)))
 

@@ -1,8 +1,9 @@
 (in-package :dev.zxul767.mp3-browser)
 
 (defparameter *mp3-dir* nil)
-(defparameter *mp3-css*
-  (when *load-pathname* (make-pathname :name "mp3-browser" :type "css" :defaults *load-pathname*)))
+
+(defparameter *mp3-css* (asdf:system-relative-pathname 'mp3-browser "mp3-browser.css"))
+(defparameter *silence-mp3* (asdf:system-relative-pathname 'mp3-browser "silentpacket.mp3"))
 
 (defclass playlist ()
   ((id :accessor id :initarg :id)
@@ -65,17 +66,16 @@
   (>= (current-song-index playlist)
       (table-size (songs playlist))))
 
-(defparameter *silence-mp3* (asdf:system-relative-pathname 'mp3-browser "silentpacket.mp3"))
 
 (defun make-silent-song (title &optional (file *silence-mp3*))
-  (make-instance
-   'song
-   :file file
-   :title title
-   :id3-size (if (id3-p file) (size (read-id3 file)) 0)))
+  (if file
+      (make-instance
+       'song
+       :file file
+       :title title
+       :id3-size (if (id3-p file) (size (read-id3 file)) 0))))
 
 (defparameter *empty-playlist-song* (make-silent-song "Playlist empty."))
-
 (defparameter *end-of-playlist-song* (make-silent-song "At end of playlist."))
 
 (defun reset-current-song (playlist)
@@ -115,8 +115,6 @@
   ;; `in' works A better API should accept any sequence of values (and implicitly
   ;; convert to a table if deemed necessary by the implementation)
   (let ((column-values (build-single-column-table column-name values)))
-    (format t "column values table has ~d items~%" (table-size column-values))
-    ;; (dev.zxul767.mp3-database::print-table column-values)
     (do-rows (row (select :from *mp3-table* :where (in column-name column-values)))
       (insert-row row (songs playlist))))
   (update-current-song playlist))
@@ -131,7 +129,10 @@
 (defun delete-songs (playlist &rest names-and-values)
   (delete-rows
    :from (songs playlist)
-   :where (apply #'matching (songs playlist) names-and-values))
+   :where (apply
+           #'matching
+           (songs playlist)
+           names-and-values))
   (setf (current-song-index playlist) (or (position-of-current-song playlist) 0))
   (update-current-song playlist))
 
@@ -185,17 +186,11 @@
 
 (defun shuffled-album-names (playlist)
   (shuffle-table
-   (select
-    :columns :album
-    :from (songs playlist)
-    :distinct t)))
+   (select :columns :album :from (songs playlist) :distinct t)))
 
 (defun songs-for-album (playlist album)
   (let ((songs (songs playlist)))
-    (select
-     :from songs
-     :where (matching songs :album album)
-     :order-by :track)))
+    (select :from songs :where (matching songs :album album) :order-by :track)))
 
 (defmethod (setf repeat) :after (value (playlist playlist))
   (if (and (at-end-p playlist) (not (empty-p playlist)))
@@ -267,14 +262,119 @@
         (:input :name "submit" :type "submit" :value "Add All"))
        (:ul (do-rows (row values) (list-item-for-page what row)))))))
 
+(define-html-handler playlist
+    (request
+     (playlist-id string (playlist-id request) :package)
+     (action keyword)                  ; playlist manipulation action
+     (what keyword :file)              ; for :add-songs actin
+     (values :base64)                  ; for :add-songs action
+     file                              ; for :add-songs and :delete-songs action
+     genre                             ; for :delete-songs action
+     artist                            ; for :delete-songs action
+     album                             ; for :delete-songs action
+     (order-by keyword)                ; for :sort action
+     (shuffle keyword)                 ; for :shuffle action
+     (repeat keyword))                 ; for :set-repeat action
+  (let ((playlist (get-or-create-playlist playlist-id)))
+    (with-playlist-locked (playlist)
+      (case action
+        (:add-songs (add-songs playlist what (or values (list file))))
+        (:delete-songs (delete-songs
+                        playlist
+                        :file file
+                        :genre genre
+                        :artist artist
+                        :album album))
+        (:clear (clear-playlist playlist))
+        (:sort (sort-playlist playlist order-by))
+        (:shuffle (shuffle-playlist playlist shuffle))
+        (:set-repeat (setf (repeat playlist) repeat))))
+    (html
+      (:mp3-browser-page
+       (:title (:format "Playlist - ~a" (id playlist)) :header nil)
+       (playlist-toolbar playlist)
+       (if (empty-p playlist)
+           (html (:p (:i "Empty.")))
+           (html
+             ((:table :class "playlist")
+              (:table-row "Song" "Album" "Artist" "Genre")
+              (let ((index 0)
+                    (current-index (current-song-index playlist)))
+                (do-rows (row (songs playlist))
+                  (with-column-values (file song album artist genre) row
+                    (let ((row-style (if (= index current-index) "now-playing" "normal")))
+                      (html
+                        ((:table-row :class row-style)
+                         (:progn song (delete-songs-link :file file))
+                         (:progn album (delete-songs-link :album album))
+                         (:progn artist (delete-songs-link :artist artist))
+                         (:progn genre (delete-songs-link :genre genre)))))
+                    (incf index)))))))))))
+
+(defun playlist-toolbar (playlist)
+  (let ((current-repeat (repeat playlist))
+        (current-sort (ordering playlist))
+        (current-shuffle (shuffle playlist)))
+    (html
+      (:p :class "playlist-toolbar"
+          (:i "Sort by:")
+          " [ "
+          (sort-playlist-button "genre" current-sort) " | "
+          (sort-playlist-button "artist" current-sort) " | "
+          (sort-playlist-button "album" current-sort) " | "
+          (sort-playlist-button "song" current-sort) " ] "
+          (:i "Shuffle by:")
+          " [ "
+          (playlist-shuffle-button "none" current-shuffle) " | "
+          (playlist-shuffle-button "song" current-shuffle) " | "
+          (playlist-shuffle-button "album" current-shuffle) " ] "
+          (:i "Repeat:")
+          " [ "
+          (playlist-repeat-button "none" current-repeat) " | "
+          (playlist-repeat-button "song" current-repeat) " | "
+          (playlist-repeat-button "all" current-repeat) " ] -- "
+          "[ " (:a :href (link "playlist" :action "clear") "Clear Playlist") " ] "))))
+
+(defun playlist-button (action argument new-value current-value)
+  (let ((label (string-capitalize new-value)))
+    (if (string-equal new-value current-value)
+        (html (:b label))
+        (html (:a :href (link "playlist" :action action argument new-value) label)))))
+
+(defun sort-playlist-button (order-by current-sort)
+  (playlist-button :sort :order-by order-by current-sort))
+
+(defun playlist-shuffle-button (shuffle current-shuffle)
+  (playlist-button :shuffle :shuffle shuffle current-shuffle))
+
+(defun playlist-repeat-button (repeat current-repeat)
+  (playlist-button :set-repeat :repeat repeat current-repeat))
+
+(defun delete-songs-link (what value)
+  (html " [" (:a :href (link "playlist" :action :delete-songs what value) "x") "]"))
+
+(define-html-handler all-playlists (request)
+  (:mp3-browser-page
+   (:title "All playlists")
+   ((:table :class "all-playlists")
+    (:table-row "Playlist" "# Songs" "Most Recent User-Agent")
+    (with-process-lock (*playlists-lock*)
+      (loop for playlist being the hash-values of *playlists* do
+        (html
+          (:table-row
+           (:a :href (link "playlist" :playlist-id (id playlist))
+               (:print (id playlist)))
+           (:print (table-size (songs playlist)))
+           (:print (user-agent playlist)))))))))
+
 (defun values-for-page (what genre artist album random-count)
-  (let ((values
-          (select
-           :from *mp3-table*
-           :columns (if (eql what :song) t what)
-           :where (matching *mp3-table* :genre genre :artist artist :album album)
-           :distinct (not (eql what :song))
-           :order-by (if (eql what :song) '(:album :track) what))))
+  (let* ((query (select
+                 :from *mp3-table*
+                 :columns (if (eql what :song) t what)
+                 :where (matching *mp3-table* :genre genre :artist artist :album album)
+                 :distinct (not (eql what :song))
+                 :order-by (if (eql what :song) '(:album :track) what)))
+         (values query))
     (if random-count
         (random-selection values random-count) values)))
 
@@ -327,20 +427,20 @@
       "] ")))
 
 (defun configure-mp3-browser (&optional force)
-  (unless (or *mp3-dir* force)
-    (format t "Enter root directory of MP3 collection: ")
-    (force-output *standard-output*)
-    (setf *mp3-dir* (read)))
   (unless (or *mp3-css* force)
     (format t "Enter full filename of mp3-browser.css: ")
     (force-output *standard-output*)
-    (setf *mp3-css* (read))))
+    (setf *mp3-css* (read)))
+  (unless (or *mp3-dir* force)
+    (format t "Enter root directory of MP3 collection: ")
+    (force-output *standard-output*)
+    (setf *mp3-dir* (read))))
 
 (defun start-mp3-browser ()
   (unless (and *mp3-dir* *mp3-css*)
     (configure-mp3-browser))
-  (load-database *mp3-dir* *mp3-table*)
-  (publish-file :path "/mp3-browser.css"  :file *mp3-css* :content-type "text/css")
   (setf *songs-source-type* 'playlist)
+  (load-database *mp3-dir* *mp3-table*)
+  (publish-file :path "/mp3-browser.css" :file *mp3-css* :content-type "text/css")
   (net.aserve::debug-on :notrap)
   (net.aserve:start :port 2020))

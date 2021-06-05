@@ -10,6 +10,7 @@
    :*mp3-table*
    :column
    :column-value
+   :create-mp3-table
    :delete-all-rows
    :delete-rows
    :do-rows

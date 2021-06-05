@@ -161,7 +161,6 @@ value returned by `current-song'"))
 ;; cache, so the switch only happens after the cached data has been played back.
 (defun stream-mp3-file (stream song songs-source
                         metadata next-metadata-interval metadata-interval)
-  (logger "metadata-interval: ~a" metadata-interval)
   (with-open-file (mp3 (file song) :element-type '(unsigned-byte 8))
     (unless (file-position mp3 (id3-size song))
       (error "Can't skip to position ~d in ~a" (id3-size song) (file song)))

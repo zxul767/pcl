@@ -11,4 +11,4 @@
   :components
   ((:file "packages")
    (:file "mp3-database" :depends-on ("packages")))
-  :depends-on (:str :pathnames :macrotools :id3v2))
+  :depends-on (:str :macrotools :functools :pathnames :id3v2))

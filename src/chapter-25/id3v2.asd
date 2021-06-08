@@ -11,4 +11,4 @@
   :components
   ((:file "packages")
    (:file "id3v2" :depends-on ("packages")))
-  :depends-on (:macrotools :pathnames :binary))
+  :depends-on (:macrotools :functools :pathnames :binary))

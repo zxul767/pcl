@@ -1,9 +1,5 @@
 (in-package :dev.zxul767.macrotools)
 
-(defmacro fn-and (&rest functions)
-  `#'(lambda (&rest args)
-       (and ,@(loop for fn in functions collect `(apply #',fn args)))))
-
 ;; The following functions are used within one or more macros, so they need
 ;; to be available in the compilation "runtime image", just like other
 ;; primitives, if such macros are used in other functions or macros being

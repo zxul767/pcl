@@ -5,7 +5,8 @@
    :common-lisp
    :dev.zxul767.binary
    :dev.zxul767.pathnames
-   :dev.zxul767.macrotools)
+   :dev.zxul767.macrotools
+   :dev.zxul767.functools)
   (:export
    :read-id3
    :mp3-p

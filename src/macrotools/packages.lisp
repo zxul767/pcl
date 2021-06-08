@@ -4,7 +4,6 @@
   (:use :cl :trivial-indent)
   (:export
    :as-keyword
-   :fn-and
    :once-only
    :condlet
    :with-labels

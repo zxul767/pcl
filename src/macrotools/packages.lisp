@@ -1,15 +1,15 @@
 (in-package :cl-user)
 
 (defpackage :dev.zxul767.macrotools
-  (:use :cl :trivial-indent)
+  (:use :cl :trivial-indent
+        :dev.zxul767.prelude)
   (:export
-   :as-keyword
-   :once-only
    :condlet
+   :once-only
+   :prog-nil
    :with-labels
    :when-bind
    :when-bind*
    :with-gensyms
    :with-result
-   :with-safe-io-syntax
-   :prog-nil))
+   :with-safe-io-syntax))

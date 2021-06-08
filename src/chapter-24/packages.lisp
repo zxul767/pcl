@@ -2,8 +2,8 @@
 
 (defpackage :dev.zxul767.binary
   (:use
-   :common-lisp
-   :trivial-indent
+   :common-lisp :trivial-indent
+   :dev.zxul767.prelude
    :dev.zxul767.macrotools)
   (:export
    :define-binary-class

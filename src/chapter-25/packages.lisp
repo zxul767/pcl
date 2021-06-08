@@ -3,6 +3,7 @@
 (defpackage :dev.zxul767.id3v2
   (:use
    :common-lisp
+   :dev.zxul767.prelude
    :dev.zxul767.binary
    :dev.zxul767.pathnames
    :dev.zxul767.macrotools

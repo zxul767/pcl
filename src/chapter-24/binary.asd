@@ -11,4 +11,4 @@
   :components
   ((:file "packages")
    (:file "binary" :depends-on ("packages")))
-  :depends-on (:macrotools :trivial-indent))
+  :depends-on (:prelude :macrotools :trivial-indent))

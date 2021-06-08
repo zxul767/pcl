@@ -6,23 +6,12 @@
 ;; compiled here or in another file that depends on this one.
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun gensyms (count)
-    (loop repeat count collect (gensym)))
-
-  (defun zip (&rest lists)
-    (apply #'mapcar #'list lists)))
+    (loop repeat count collect (gensym))))
 
 (defmacro with-safe-io-syntax (&body body)
   `(with-standard-io-syntax
      (let ((*read-eval* nil))
        ,@body)))
-
-(defun as-keyword (symbol)
-  "Gets or creates a keyword symbol with the same name as `symbol'"
-  (intern (string symbol) :keyword))
-
-(defun mappend (mapper &rest lists)
-  "Maps elements in list and finally appends all resulted lists."
-  (apply #'append (apply #'mapcar mapper lists)))
 
 (defmacro with-labels (form &body definitions)
   `(labels ,definitions ,form))

@@ -20,6 +20,11 @@
     with-labels ((&whole 4 &rest 4) &rest (&whole 2 4 &rest 2)))
 (indent:initialize-slime)
 
+(defmacro let-guard ((var condition) error &body body)
+  (assert (symbolp var))
+  `(let ((,var ,condition))
+     (if ,var (progn ,@body) ,error)))
+
 (defmacro when-bind (forms &body body)
   (let ((variables (mapcar #'car forms)))
     `(let ,forms

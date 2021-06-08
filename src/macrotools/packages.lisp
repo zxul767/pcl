@@ -6,6 +6,7 @@
   (:export
    :condlet
    :once-only
+   :let-guard
    :prog-nil
    :with-labels
    :when-bind

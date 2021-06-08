@@ -100,17 +100,6 @@ stack) currently being read/written."
   `(destructuring-bind (,name (,type &rest ,args)) (normalize-slot ,slot)
      ,@body))
 
-(defun ensure-list (x)
-  (if (listp x) x (list x)))
-
-;; -----------------------------------------------------------------------------
-;; General Utility Macros
-;; -----------------------------------------------------------------------------
-(defmacro let-guard ((var condition) error &body body)
-  (assert (symbolp var))
-  `(let ((,var ,condition))
-     (if ,var (progn ,@body) ,error)))
-
 ;; -----------------------------------------------------------------------------
 ;; Binary Data Structures Definition Macros
 ;; -----------------------------------------------------------------------------

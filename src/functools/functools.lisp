@@ -1,7 +1,8 @@
 (in-package :dev.zxul767.functools)
 
 (defmacro fn-and (&rest functions)
-  "(funcall (fn-and is-mp3 has-id3) file) <=> (lambda (file) (and (is-mp3 file) (has-id3 file)))"
+  "Generate a composite function that ANDs `functions`.
+All functions are assumed to have the same signature"
   `#'(lambda (&rest args)
        (and ,@(loop for fn in functions collect `(apply #',fn args)))))
 

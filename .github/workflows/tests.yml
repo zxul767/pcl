@@ -1,13 +1,21 @@
-name: test
+name: tests
 
 on:
   push:
     branches: [ main ]
+    paths-ignore:
+      # Do NOT run tests when only documentation has changed
+      - '**.md'
+      - '.github/**'
   pull_request:
     branches: [ main ]
+    paths-ignore:
+      # Do NOT run tests when only documentation has changed
+      - '**.md'
+      - '.github/**'
 
 jobs:
-  test:
+  tests:
     name: ${{ matrix.lisp }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:

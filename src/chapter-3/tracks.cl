@@ -1,0 +1,2 @@
+
+((:TITLE "Going Under" :ARTIST "Halocene" :RATING 3 :RIPPED NIL) (:TITLE "Paint Black" :ARTIST "Violet Orlandi" :RATING 5 :RIPPED T) (:TITLE "Tonight Alive" :ARTIST "Sandra Szabo" :RATING 3 :RIPPED T)) 

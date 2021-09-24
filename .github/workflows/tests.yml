@@ -28,4 +28,4 @@ jobs:
         run: ros install neil-lindquist/ci-utils
       - name: Run tests
         shell: bash
-        run: ./run-tests.sh
+        run: src/run-tests.sh

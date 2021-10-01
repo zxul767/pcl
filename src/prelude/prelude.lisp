@@ -11,4 +11,5 @@
   (intern (string symbol) :keyword))
 
 (defun ensure-list (x)
+  "Ensure that x is always a list"
   (if (listp x) x (list x)))

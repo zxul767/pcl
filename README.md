@@ -1,5 +1,5 @@
 # Practical Common Lisp
-![Status](https://github.com/zxul767/pcl/actions/workflows/tests.yml/badge.svg)
+![Status](https://github.com/zxul767/pcl/actions/workflows/build.yml/badge.svg)
 
 Examples and experiments from the [Practical Common Lisp](http://www.gigamonkeys.com/book/) book.
 

@@ -1,5 +1,6 @@
-(in-package :cl-user)
+(in-package #:cl-user)
 
-(defpackage :dev.zxul767.functools-tests
-  (:use :cl :fiveam :dev.zxul767.functools)
-  (:export :run! :master-suite :negate-suite))
+(defpackage #:dev.zxul767.functools-tests
+  (:use #:cl #:fiveam)
+  (:local-nicknames (#:ft #:dev.zxul767.functools))
+  (:export #:run-tests #:master-suite #:negate-suite))

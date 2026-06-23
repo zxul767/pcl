@@ -1,7 +1,5 @@
-(in-package :cl-user)
+(in-package #:cl-user)
 
-(defpackage :dev.zxul767.functools
-  (:use :cl)
-  (:export
-   :negate
-   :fn-and))
+(defpackage #:dev.zxul767.functools
+  (:use #:cl)
+  (:export #:negate #:and-pipe))

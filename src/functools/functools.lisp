@@ -1,8 +1,8 @@
-(in-package :dev.zxul767.functools)
+(in-package #:dev.zxul767.functools)
 
-(defmacro fn-and (&rest functions)
-  "Generate a composite function that ANDs `functions`.
-All functions are assumed to have the same signature"
+(defmacro and-pipe (&rest functions)
+  "Generate a function that ANDs `functions` in a short-circuiting pipeline.
+All functions are assumed to have the same signature."
   `#'(lambda (&rest args)
        (and ,@(loop for fn in functions collect `(apply #',fn args)))))
 

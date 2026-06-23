@@ -59,7 +59,7 @@
 
 (defun extract-words (text)
   (delete-duplicates
-   (cl-ppcre:all-matches-as-strings "[a-zA-Z]{3,}" text)
+   (re:all-matches-as-strings "[a-zA-Z]{3,}" text)
    :test #'string=))
 
 (defun intern-feature (word)

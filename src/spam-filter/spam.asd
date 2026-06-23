@@ -1,6 +1,3 @@
-(defpackage :dev.zxul767.spam-system (:use :asdf :cl))
-(in-package :dev.zxul767.spam-system)
-
 (defsystem spam
   :name "spam"
   :author "Peter Seibel <peter@gigamonkeys.com>"

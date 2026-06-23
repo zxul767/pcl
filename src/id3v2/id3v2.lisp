@@ -1,4 +1,4 @@
-(in-package :dev.zxul767.id3v2)
+(in-package #:dev.zxul767.id3v2)
 
 ;; two-byte encodings require knowing whether the first logical byte is written out first
 (defvar *bom-big-endian* #xfeff)
@@ -228,7 +228,7 @@
       (if (not (string= "ID3" id))
           (error 'missing-id3-tag))))
   (:writer (out id)
-    (write-value 'iso-8859-1-string id :length length)))
+    (write-value 'iso-8859-1-string out id :length length)))
 
 ;; frame IDs are just like other regular IDs in the ID3 spec, but they are
 ;; designed to signal the `in-padding' "exception" to transfer control up
@@ -240,7 +240,7 @@
       (let ((rest (read-value 'iso-8859-1-string in :length (1- length))))
         (concatenate 'string (string (code-char first-byte)) rest))))
   (:writer (out id)
-    (write-value 'iso-8859-1-string id :length length)))
+    (write-value 'iso-8859-1-string out id :length length)))
 
 (define-tagged-binary-class id3-frame ()
     ((:class-finder (find-frame-class id)))
@@ -311,7 +311,7 @@
   (with-labels
       (walk-directory directory #'show-tag-header
           :recursively t
-          :file-condition (fn-and mp3-p id3-p))
+          :file-condition (and-pipe mp3-p id3-p))
     (show-tag-header (file)
       (when-bind ((id3-tag (read-id3 file)))
         (with-slots (identifier major-version revision flags size) id3-tag

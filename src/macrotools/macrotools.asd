@@ -1,7 +1,4 @@
-(defpackage :dev.zxul767.macrotools-system (:use :asdf :cl))
-(in-package :dev.zxul767.macrotools-system)
-
-(defsystem macrotools
+(defsystem "macrotools"
   :name "macrotools"
   :author "Peter Seibel <peter@gigamonkeys.com>"
   :version "0.0.1"

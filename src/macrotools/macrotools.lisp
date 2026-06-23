@@ -1,4 +1,4 @@
-(in-package :dev.zxul767.macrotools)
+(in-package #:dev.zxul767.macrotools)
 
 ;; The following functions are used within one or more macros, so they need
 ;; to be available in the compilation "runtime image", just like other
@@ -18,7 +18,7 @@
 
 (indent:define-indentation
     with-labels ((&whole 4 &rest 4) &rest (&whole 2 4 &rest 2)))
-(indent:initialize-slime)
+(indent:initialize-sly)
 
 (defmacro let-guard ((var condition) error &body body)
   (assert (symbolp var))

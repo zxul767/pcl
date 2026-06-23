@@ -1,6 +1,8 @@
 (in-package :dev.zxul767.mp3-database)
 
 (defparameter *default-table-size* 1000)
+(defparameter *mp3-table* (create-mp3-table))
+(defparameter *mp3-schema* (create-mp3-schema))
 
 (defclass table ()
   ((rows :accessor rows :initarg :rows :initform (make-rows))
@@ -108,7 +110,7 @@
          (when (insert-row (file->row file) database)
            (incf count)))
      :recursively t
-     :file-condition (fn-and mp3-p id3-p))
+     :file-condition (and-pipe mp3-p id3-p))
     (format t "~&Loaded ~d files into database." count)))
 
 (defun select (&key (columns t) from where distinct order-by)
@@ -359,10 +361,10 @@
 
 (defun run-query (table predicate)
   (print-table (select :columns '(:song :artist :album)
-                      :from table
-                      :where predicate
-                      :distinct t
-                      :order-by '(:album :song))))
+                       :from table
+                       :where predicate
+                       :distinct t
+                       :order-by '(:album :song))))
 
 (defparameter *default-rows-for-sample-display* 5)
 
@@ -441,6 +443,3 @@
 (defun longest-string-length (strings)
   (reduce #'max strings :key #'length))
 
-(defparameter *mp3-table* (create-mp3-table))
-
-(defparameter *mp3-schema* (create-mp3-schema))

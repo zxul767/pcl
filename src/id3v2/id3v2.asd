@@ -1,7 +1,4 @@
-(defpackage :dev.zxul767.id3v2-system (:use :asdf :cl))
-(in-package :dev.zxul767.id3v2-system)
-
-(defsystem id3v2
+(defsystem "id3v2"
   :name "id3v2"
   :author "Peter Seibel <peter@gigamonkeys.com>"
   :version "1.0"

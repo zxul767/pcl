@@ -4,7 +4,6 @@
   (:use #:cl #:trivial-indent
         #:dev.zxul767.prelude)
   (:export
-   #:condlet
    #:once-only
    #:let-guard
    #:prog-nil

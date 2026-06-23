@@ -12,5 +12,5 @@
    #:when-bind
    #:when-bind*
    #:with-gensyms
-   #:with-result
+   #:let-return
    #:with-safe-io-syntax))

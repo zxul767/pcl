@@ -8,11 +8,11 @@
    :dev.zxul767.id3v2)
   (:export
    :*default-table-size*
-   :*mp3-schema*
-   :*mp3-table*
    :column
    :column-value
    :create-mp3-table
+   :get-mp3-table
+   :get-mp3-schema
    :delete-all-rows
    :delete-rows
    :do-rows

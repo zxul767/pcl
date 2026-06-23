@@ -1,8 +1,8 @@
 (in-package :dev.zxul767.mp3-database)
 
 (defparameter *default-table-size* 1000)
-(defparameter *mp3-table* (create-mp3-table))
-(defparameter *mp3-schema* (create-mp3-schema))
+(defparameter *mp3-table* nil)
+(defparameter *mp3-schema* nil)
 
 (defclass table ()
   ((rows :accessor rows :initarg :rows :initform (make-rows))
@@ -70,8 +70,14 @@
 (defun make-schema (spec)
   (mapcar #'(lambda (column-spec) (apply #'make-column column-spec)) spec))
 
+(defun get-mp3-table ()
+  (or *mp3-table* (setf *mp3-table* (create-mp3-table))))
+
 (defun create-mp3-table ()
   (make-instance 'table :schema (create-mp3-schema)))
+
+(defun get-mp3-schema ()
+  (or *mp3-schema* (setf *mp3-schema* (create-mp3-schema))))
 
 (defun create-mp3-schema ()
   (make-schema
@@ -100,8 +106,7 @@
   (delete-all-rows database)
   ;; the interned values in some of the columns are populated dynamically
   ;; so we need to recreate the schema to get rid of the old values
-  (setf *mp3-schema* (create-mp3-schema))
-  (setf (schema database) *mp3-schema*)
+  (setf (schema database) (get-mp3-schema))
   (let ((count 0))
     (walk-directory
      directory

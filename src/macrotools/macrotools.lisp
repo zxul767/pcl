@@ -40,7 +40,7 @@
           `(when-bind (,(car forms))
              ,(build-expansion (cdr forms)))))))
 
-(defmacro with-result ((result &optional initform) &body body)
+(defmacro let-return ((result &optional initform) &body body)
   `(let ((,result ,initform))
      ,@body
      ,result))

@@ -109,7 +109,7 @@
 
 (define-binary-type generic-string (length character-type)
   (:reader (in)
-    (with-result (string (make-string length))
+    (let-return (string (make-string length))
       (dotimes (i length)
         (setf (char string i) (read-value character-type in)))))
   (:writer (out string)
@@ -165,7 +165,7 @@
   (:reader (in)
     (if (> size max-size)
         (error 'data-too-large :size size :max-size max-size))
-    (with-result (buffer (make-array size :element-type '(unsigned-byte 8)))
+    (let-return (buffer (make-array size :element-type '(unsigned-byte 8)))
       (read-sequence buffer in)))
   (:writer (out buffer)
     (assert (= size (length buffer)))
@@ -224,7 +224,7 @@
 
 (define-binary-type tag-id (length)
   (:reader (in)
-    (with-result (id (read-value 'iso-8859-1-string in :length length))
+    (let-return (id (read-value 'iso-8859-1-string in :length length))
       (if (not (string= "ID3" id))
           (error 'missing-id3-tag))))
   (:writer (out id)
@@ -394,7 +394,7 @@
      :test #'string=)))
 
 (defun frame-types-in-directory (directory &key sort-by)
-  (with-result (ids)
+  (let-return (ids)
     (with-labels
         (walk-directory directory #'collect
             :recursively t

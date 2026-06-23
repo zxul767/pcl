@@ -25,7 +25,7 @@
   (unless (and *mp3s-rootpath* *styles-filepath*)
     (configure-mp3-browser))
   (setf *songs-source-type* 'playlist)
-  (load-database *mp3s-rootpath* *mp3-table*)
+  (load-database *mp3s-rootpath* (get-mp3-table))
   (publish-file :path "/mp3-browser.css" :file *styles-filepath* :content-type "text/css")
   (net.aserve::debug-on :notrap)
   (net.aserve:start :port 2020))
@@ -84,9 +84,9 @@
 
 (defun values-for-page (what genre artist album random-count)
   (let* ((query (select
-                 :from *mp3-table*
+                 :from (get-mp3-table)
                  :columns (if (eql what :song) t what)
-                 :where (matching *mp3-table* :genre genre :artist artist :album album)
+                 :where (matching (get-mp3-table) :genre genre :artist artist :album album)
                  :distinct (not (eql what :song))
                  :order-by (if (eql what :song) '(:album :track) what)))
          (values query))

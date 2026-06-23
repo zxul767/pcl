@@ -27,7 +27,7 @@
 
 ;; TODO: should we rename `find-songs-source` to `get-playlist`?
 (defmethod find-songs-source ((type (eql 'playlist)) request)
-  (with-result (playlist (get-or-create-playlist (playlist-id request)))
+  (let-return (playlist (get-or-create-playlist (playlist-id request)))
     (with-playlist-locked (playlist)
       (when-bind ((user-agent (header-slot-value request :user-agent)))
         (setf (user-agent playlist) user-agent)))))
@@ -92,15 +92,14 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Mutators
 (defun add-songs (playlist column-name values)
- (with-labels
+  (with-labels
       (let ((column-table (build-column-table column-name values)))
         (do-rows (row (select :from *mp3-table* :where (in column-name column-table)))
           (insert-row row (songs playlist)))
         (update-current-song playlist))
-
     (build-column-table (column-name values)
-      (with-result
-          (table (make-instance 'table :schema (extract-schema `(,column-name) *mp3-schema*)))
+      (let-return
+          (table (make-instance 'table :schema (extract-schema `(,column-name) (get-mp3-schema))))
         (dolist (value values)
           (insert-row `(,column-name ,value) table))))))
 

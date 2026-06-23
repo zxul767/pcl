@@ -31,7 +31,7 @@
        (when (and ,@variables)
          ,@body))))
 
-(defmacro when-bind* (forms &body body)
+(defmacro let-when* (forms &body body)
   (with-labels
       (build-expansion forms)
     (build-expansion (forms)

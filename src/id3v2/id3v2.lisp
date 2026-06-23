@@ -331,8 +331,8 @@
             :recursively t
             :file-condition #'mp3-p)
       (count-version (file)
-        (when-bind* ((tag (read-id3 file))
-                     (major-version (assoc (major-version tag) version-counts)))
+        (let-when* ((tag (read-id3 file))
+                    (major-version (assoc (major-version tag) version-counts)))
           (incf (cdr major-version)))))
     (loop for (version . count) in version-counts
           collect `(:version ,version :count ,count))))

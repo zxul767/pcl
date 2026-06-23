@@ -10,7 +10,7 @@
    #:prog-nil
    #:with-labels
    #:let-when
-   #:when-bind*
+   #:let-when*
    #:with-gensyms
    #:let-return
    #:with-safe-io-syntax))

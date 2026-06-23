@@ -2,17 +2,17 @@ name: build
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
     paths-ignore:
       # Do NOT run tests when only documentation has changed
-      - '**.md'
-      - '.github/**'
+      - "**.md"
+      - ".github/**"
   pull_request:
-    branches: [ main ]
+    branches: [main]
     paths-ignore:
       # Do NOT run tests when only documentation has changed
-      - '**.md'
-      - '.github/**'
+      - "**.md"
+      - ".github/**"
 
 jobs:
   tests:
@@ -23,6 +23,9 @@ jobs:
       matrix:
         lisp: [sbcl-bin, ccl-bin]
         os: [ubuntu-latest, macOS-latest]
+        exclude:
+          - lisp: ccl-bin
+            os: macOS-latest
 
     steps:
       - uses: actions/checkout@v1

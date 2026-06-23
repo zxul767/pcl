@@ -1,4 +1,4 @@
-(in-package :dev.zxul767.prelude)
+(in-package #:dev.zxul767.prelude)
 
 (defun zip (&rest lists)
   (apply #'mapcar #'list lists))

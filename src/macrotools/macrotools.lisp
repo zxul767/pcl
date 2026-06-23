@@ -25,7 +25,7 @@
   `(let ((,var ,condition))
      (if ,var (progn ,@body) ,error)))
 
-(defmacro when-bind (forms &body body)
+(defmacro let-when (forms &body body)
   (let ((variables (mapcar #'car forms)))
     `(let ,forms
        (when (and ,@variables)
@@ -37,7 +37,7 @@
     (build-expansion (forms)
       (if (null forms)
           `(progn ,@body)
-          `(when-bind (,(car forms))
+          `(let-when (,(car forms))
              ,(build-expansion (cdr forms)))))))
 
 (defmacro let-return ((result &optional initform) &body body)

@@ -64,7 +64,7 @@ value returned by `current-song'"))
       (format nil "Unknown song information")))
 
 (defun file->song (filepath)
-  (when-bind ((id3-tag (read-id3 filepath)))
+  (let-when ((id3-tag (read-id3 filepath)))
     (make-instance
      'song
      :file (namestring (truename filepath))
@@ -136,7 +136,7 @@ value returned by `current-song'"))
 ;; FIXME: should we merge `stream-current-song' and `stream-mp3-file'?
 (defun stream-current-song
     (stream songs-source next-metadata-interval metadata-interval)
-  (when-bind ((song (current-song songs-source)))
+  (let-when ((song (current-song songs-source)))
     (logger "streaming ~a -- ~a" (title song) (file song))
     (let ((metadata (make-icy-metadata (title song) (file song))))
       (setf next-metadata-interval

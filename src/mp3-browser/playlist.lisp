@@ -29,7 +29,7 @@
 (defmethod find-songs-source ((type (eql 'playlist)) request)
   (let-return (playlist (get-or-create-playlist (playlist-id request)))
     (with-playlist-locked (playlist)
-      (when-bind ((user-agent (header-slot-value request :user-agent)))
+      (let-when ((user-agent (header-slot-value request :user-agent)))
         (setf (user-agent playlist) user-agent)))))
 
 (defmethod current-song :around ((playlist playlist))

@@ -9,7 +9,7 @@
    #:let-guard
    #:prog-nil
    #:with-labels
-   #:when-bind
+   #:let-when
    #:when-bind*
    #:with-gensyms
    #:let-return

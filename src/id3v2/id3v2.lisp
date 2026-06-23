@@ -313,7 +313,7 @@
           :recursively t
           :file-condition (and-pipe mp3-p id3-p))
     (show-tag-header (file)
-      (when-bind ((id3-tag (read-id3 file)))
+      (let-when ((id3-tag (read-id3 file)))
         (with-slots (identifier major-version revision flags size) id3-tag
           (format t "~a ~d.~d ~8,'0b ~d bytes -- ~a~%"
                   identifier major-version revision flags size (enough-namestring file)))))))
@@ -348,7 +348,7 @@
     (string= "ID3" (read-value 'iso-8859-1-string in :length 3))))
 
 (defun show-mp3-metadata (filepath)
-  (when-bind ((id3 (read-id3 filepath)))
+  (let-when ((id3 (read-id3 filepath)))
     (format t "file: ~a ~%" (enough-namestring filepath))
     (show-id3-information id3))
   (format t "~%"))
@@ -386,7 +386,7 @@
   (getf plist :version))
 
 (defun frame-types (filepath)
-  (when-bind ((id3 (read-id3 filepath)))
+  (let-when ((id3 (read-id3 filepath)))
     (delete-duplicates
      (mapcar #'(lambda (frame) (list :id (id frame) :version (major-version id3)))
              (frames id3))
@@ -476,7 +476,7 @@
 (def-id3-getter genre "TCO" "TCON")
 
 (defun translated-genre (id3)
-  (when-bind ((genre (genre id3)))
+  (let-when ((genre (genre id3)))
     (let ((genre (string-trim '(#\Space) genre)))
       (if (and (> (length genre) 0)
                (char= #\( (char genre 0)))

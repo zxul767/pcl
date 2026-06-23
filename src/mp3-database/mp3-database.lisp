@@ -91,7 +91,7 @@
      (:id3-size number))))
 
 (defun file->row (file)
-  (when-bind ((id3 (read-id3 file)))
+  (let-when ((id3 (read-id3 file)))
     (list
      :file (namestring (truename file))
      :genre (translated-genre id3)
@@ -251,7 +251,7 @@
   (funcall (value-normalizer column) value column))
 
 (defun try-parse-integer (text &rest keywords &key &allow-other-keys)
-  (when-bind ((text (and text (trim-whitespace text))))
+  (let-when ((text (and text (trim-whitespace text))))
     (apply #'parse-integer text :junk-allowed t keywords)))
 
 (defun try-parse-track (track)
@@ -352,7 +352,7 @@
 ;; testing ground
 ;; ----------------------------------------------------------------------------
 (defun enumerate-column-values (column-name schema)
-  (when-bind ((column (find-column column-name schema)))
+  (let-when ((column (find-column column-name schema)))
     (unless (is-categorical column)
       (error "Column ~a does not have a fixed set of values!" column))
     (with-slots (interned-values) column
@@ -402,7 +402,7 @@
 ;;       the current implementation traverses all rows for each 'string'
 ;;       column present in `table'
 (defun estimate-column-width (column-name table &key max-rows)
-  (when-bind ((column (find-column column-name (schema table))))
+  (let-when ((column (find-column column-name (schema table))))
     (1+
      (cond
        ((is-categorical column)

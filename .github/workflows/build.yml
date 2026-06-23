@@ -6,13 +6,11 @@ on:
     paths-ignore:
       # Do NOT run tests when only documentation has changed
       - "**.md"
-      - ".github/**"
   pull_request:
     branches: [main]
     paths-ignore:
       # Do NOT run tests when only documentation has changed
       - "**.md"
-      - ".github/**"
 
 jobs:
   tests:

@@ -1,6 +1,3 @@
-(defpackage :dev.zxul767.shoutcast-system (:use :asdf :cl))
-(in-package :dev.zxul767.shoutcast-system)
-
 (defsystem shoutcast
   :name "shoutcast"
   :author "Peter Seibel <peter@gigamonkeys.com>"

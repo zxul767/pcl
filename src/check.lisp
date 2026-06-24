@@ -31,11 +31,31 @@
     :test #'string=)
    #'string<))
 
-(defun dependency-name (dependency)
+(defun resolved-dependency-names (dependency)
+  "Return the active system names from an ASDF dependency specification.
+
+Plain dependencies may be strings or symbols.  ASDF also supports
+(:FEATURE expression dependency), which applies only when EXPRESSION matches
+the current Lisp's *FEATURES*, and (:VERSION dependency version), which adds a
+minimum-version constraint.  This function selects names only so Quicklisp can
+download their releases; ASDF still validates version constraints when it
+loads and tests the systems."
   (etypecase dependency
-    (string dependency)
-    (symbol (string-downcase dependency))
-    (cons (dependency-name (first dependency)))))
+    ;; ASDF may expose plain names as symbols even when the original DEFSYSTEM
+    ;; form used strings.
+    (string (list dependency))
+    (symbol (list (string-downcase dependency)))
+    (cons
+     (ecase (first dependency)
+       (:feature
+        ;; FEATUREP understands compound CL feature expressions such as
+        ;; (:AND :SBCL (:NOT :WINDOWS)).  An inactive dependency yields NIL.
+        (when (uiop:featurep (second dependency))
+          (resolved-dependency-names (third dependency))))
+       (:version
+        ;; Installation only needs the nested system name.  ASDF retains and
+        ;; later enforces the version requirement itself.
+        (resolved-dependency-names (second dependency)))))))
 
 (defun ensure-system-dependencies-installed (system-name &optional seen)
   (unless (member system-name seen :test #'string=)
@@ -45,8 +65,9 @@
       (cond
         (asdf-system
          (dolist (dependency (asdf:system-depends-on asdf-system))
-           (ensure-system-dependencies-installed
-            (dependency-name dependency) seen)))
+           (dolist (dependency-name
+                    (resolved-dependency-names dependency))
+             (ensure-system-dependencies-installed dependency-name seen))))
         (quicklisp-system
          (ql-dist:ensure-installed quicklisp-system)
          (dolist (dependency (ql-dist:required-systems quicklisp-system))

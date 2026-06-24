@@ -35,3 +35,22 @@ jobs:
       - name: Run project checks
         shell: bash
         run: src/check.sh
+      - name: Check warning log
+        if: always()
+        id: warnings
+        shell: bash
+        run: |
+          if [[ -s warnings.log ]]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Print warnings after failure
+        if: failure() && steps.warnings.outputs.present == 'true'
+        shell: bash
+        run: cat warnings.log
+      - name: Upload warnings
+        if: always() && steps.warnings.outputs.present == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: warnings-${{ matrix.lisp }}-${{ matrix.os }}
+          path: warnings.log
+          retention-days: 7

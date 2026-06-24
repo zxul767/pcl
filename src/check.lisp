@@ -31,17 +31,40 @@
     :test #'string=)
    #'string<))
 
-(defun run-system-test (system-name &key verbose)
+(defun dependency-name (dependency)
+  (etypecase dependency
+    (string dependency)
+    (symbol (string-downcase dependency))
+    (cons (dependency-name (first dependency)))))
+
+(defun ensure-system-dependencies-installed (system-name &optional seen)
+  (unless (member system-name seen :test #'string=)
+    (let ((seen (cons system-name seen))
+          (asdf-system (asdf:find-system system-name nil))
+          (quicklisp-system (ql-dist:find-system system-name)))
+      (cond
+        (asdf-system
+         (dolist (dependency (asdf:system-depends-on asdf-system))
+           (ensure-system-dependencies-installed
+            (dependency-name dependency) seen)))
+        (quicklisp-system
+         (ql-dist:ensure-installed quicklisp-system)
+         (dolist (dependency (ql-dist:required-systems quicklisp-system))
+           (ensure-system-dependencies-installed dependency seen)))
+        (t
+         (error "ASDF/Quicklisp dependency ~s was not found." system-name))))))
+
+(defun install-project-dependencies (system-names)
+  (ensure-system-dependencies-installed *main-system*)
+  (dolist (system-name system-names)
+    (let ((tests-system-name (format nil "~a/tests" system-name)))
+      (when (asdf:find-system tests-system-name nil)
+        (ensure-system-dependencies-installed tests-system-name)))))
+
+(defun run-system-test (system-name)
   (handler-case
       (progn
         (format t "~&Testing ASDF system ~a...~%" system-name)
-
-        ;; load the tests system via quicklisp so we can fetch any required
-        ;; third-party dependencies first (e.g., "fiveam")
-        (let ((system-tests-name (format nil "~a/tests" system-name)))
-          (if (asdf:find-system system-tests-name nil)
-              (ql:quickload system-tests-name :silent (not verbose) :verbose verbose)))
-
         (asdf:test-system system-name)
         nil)
     (error (condition)
@@ -49,9 +72,9 @@
               system-name condition)
       (cons system-name condition))))
 
-(defun run-system-tests (system-names &key verbose)
+(defun run-system-tests (system-names)
   (loop for name in system-names
-        for failure = (run-system-test name :verbose verbose)
+        for failure = (run-system-test name)
         when failure collect failure))
 
 (defun verbose-checks-p ()
@@ -95,17 +118,21 @@
 
 (defun project-check-status (source-directory &key verbose)
   (handler-case
-      (asdf/session:with-asdf-session (:override t)
-        ;; Compile and load the top-level application and all dependent subsystems.
-        (ql:quickload *main-system* :silent (not verbose) :verbose verbose)
-        ;; Run all subsystems' tests.
-        (let ((failures
-                (run-system-tests (local-system-names source-directory) :verbose verbose)))
-          (when failures
-            (error "~d ASDF system~:p failed project checks."
-                   (length failures))))
-        (format t "~&ALL PROJECT CHECKS PASSED~%")
-        0)
+      (let ((system-names (local-system-names source-directory)))
+        ;; Install third-party dependencies before opening an ASDF session
+        ;; so Quicklisp downloads do not invalidate its action plan.
+        (install-project-dependencies system-names)
+
+        (asdf/session:with-asdf-session (:override t)
+          ;; Compile and load the top-level application and all dependent subsystems.
+          (ql:quickload *main-system* :silent (not verbose) :verbose verbose)
+          ;; Run all subsystems' tests.
+          (let ((failures (run-system-tests system-names)))
+            (when failures
+              (error "~d ASDF system~:p failed project checks."
+                     (length failures))))
+          (format t "~&ALL PROJECT CHECKS PASSED~%")
+          0))
     (error (condition)
       (format *error-output* "~&PROJECT CHECKS FAILED: ~a~%" condition)
       1)))

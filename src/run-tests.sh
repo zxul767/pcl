@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-$HOME/.roswell/bin/run-fiveam -e t -l functools/tests \
-    dev.zxul767.functools-tests:master-suite \
-    && echo "ALL TESTS PASSED"
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+
+echo "run-tests.sh is deprecated; use check.sh instead." >&2
+exec "$script_dir/check.sh"

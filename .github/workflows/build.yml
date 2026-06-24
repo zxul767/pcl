@@ -32,9 +32,6 @@ jobs:
           LISP: ${{ matrix.lisp }}
         shell: bash
         run: curl -L https://raw.githubusercontent.com/roswell/roswell/master/scripts/install-for-ci.sh | sh
-      - name: Install Test Framework
+      - name: Run project checks
         shell: bash
-        run: ros install neil-lindquist/ci-utils
-      - name: Run tests
-        shell: bash
-        run: echo $PATH && src/run-tests.sh
+        run: src/check.sh

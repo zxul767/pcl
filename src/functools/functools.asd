@@ -24,4 +24,8 @@
                  (:file "main" :depends-on ("packages")))))
   :perform
   (test-op (o s)
-           (uiop:symbol-call :dev.zxul767.functools-tests :run-tests)))
+           (declare (ignore o))
+           (unless (uiop:symbol-call
+                    :dev.zxul767.functools-tests :run-tests)
+             (error "Tests failed for ASDF system ~a."
+                    (asdf:component-name s)))))

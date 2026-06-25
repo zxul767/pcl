@@ -1,38 +1,42 @@
 (in-package #:cl-user)
 
-(defvar *main-system* "mp3-browser")
-
-(defun asd-files-under (directory)
-  (append (uiop:directory-files directory "*.asd")
-          (mapcan #'asd-files-under (uiop:subdirectories directory))))
+(defun asd-files-under (dirpath)
+  "Returns all `.asd` files under `dirpath` and nested directories."
+  (append (uiop:directory-files dirpath "*.asd")
+          (mapcan #'asd-files-under (uiop:subdirectories dirpath))))
 
 (defun tests-system-p (name)
+  "Is `name` a test system?"
   (let ((suffix "/tests"))
     (and (<= (length suffix) (length name))
          (string= suffix name :start2 (- (length name) (length suffix))))))
 
-(defun get-source-directory ()
+(defun get-source-dirpath ()
+  "Returns the path of the source directory of the current file."
   (uiop:pathname-directory-pathname *load-truename*))
 
 (defun get-warnings-filepath ()
+  "Returns the path of the warnings log file.
+
+By convention, it is placed on the parent directory of the source directory."
   (merge-pathnames
    "warnings.log"
-   (uiop:pathname-parent-directory-pathname (get-source-directory))))
+   (uiop:pathname-parent-directory-pathname (get-source-dirpath))))
 
-(defun local-system-names (directory)
+(defun get-local-system-names (dirpath)
   ;; ASDF requires each primary system to have the same name as its .asd file.
   ;; Secondary systems, such as "functools/tests", are tested through their
   ;; primary system and therefore do not need to be discovered separately.
   (sort
    (remove-duplicates
-    (loop for file in (asd-files-under directory)
+    (loop for file in (asd-files-under dirpath)
           for name = (pathname-name file)
           unless (tests-system-p name) collect name)
     :test #'string=)
    #'string<))
 
-(defun resolved-dependency-names (dependency)
-  "Return the active system names from an ASDF dependency specification.
+(defun resolve-dependency-names (dependency)
+  "Returns the active system names from an ASDF dependency specification.
 
 Plain dependencies may be strings or symbols.  ASDF also supports
 (:FEATURE expression dependency), which applies only when EXPRESSION matches
@@ -51,41 +55,51 @@ loads and tests the systems."
         ;; FEATUREP understands compound CL feature expressions such as
         ;; (:AND :SBCL (:NOT :WINDOWS)).  An inactive dependency yields NIL.
         (when (uiop:featurep (second dependency))
-          (resolved-dependency-names (third dependency))))
+          (resolve-dependency-names (third dependency))))
        (:version
         ;; Installation only needs the nested system name.  ASDF retains and
         ;; later enforces the version requirement itself.
-        (resolved-dependency-names (second dependency)))))))
+        (resolve-dependency-names (second dependency)))))))
 
-(defun ensure-system-dependencies-installed (system-name &optional seen)
+(defun ensure-system-dependencies (system-name &optional seen)
+  "Ensure all direct and transitive dependencies for `system-name` are locally available.
+
+It DOES NOT compile/load any such dependencies the way `(ql:quickload ...)` would do.
+"
   (unless (member system-name seen :test #'string=)
-    (let ((seen (cons system-name seen))
+    (let ((seen (cons system-name seen)) ;; track systems to avoid infinite loops
           (asdf-system (asdf:find-system system-name nil))
           (quicklisp-system (ql-dist:find-system system-name)))
       (cond
         (asdf-system
+         ;; if a system is already in the ASDF registry, we still need to ensure
+         ;; all its direct and transitive dependencies are locally available too.
          (dolist (dependency (asdf:system-depends-on asdf-system))
-           (dolist (dependency-name
-                    (resolved-dependency-names dependency))
-             (ensure-system-dependencies-installed dependency-name seen))))
+           (dolist (name (resolve-dependency-names dependency))
+             (ensure-system-dependencies name seen))))
         (quicklisp-system
+         ;; this is what actually downloads and registers third-party dependencies.
          (ql-dist:ensure-installed quicklisp-system)
          (dolist (dependency (ql-dist:required-systems quicklisp-system))
-           (ensure-system-dependencies-installed dependency seen)))
+           (ensure-system-dependencies dependency seen)))
         (t
          (error "ASDF/Quicklisp dependency ~s was not found." system-name))))))
 
-(defun install-project-dependencies (system-names)
-  (ensure-system-dependencies-installed *main-system*)
+(defun ensure-all-dependencies (system-names)
+  "Ensure all direct and transitive dependencies for `system-names`
+(and their respective test systems) are locally available."
   (dolist (system-name system-names)
+    ;; install the system itself...
+    (ensure-system-dependencies system-name)
     (let ((tests-system-name (format nil "~a/tests" system-name)))
       (when (asdf:find-system tests-system-name nil)
-        (ensure-system-dependencies-installed tests-system-name)))))
+        ;; ...and its test system
+        (ensure-system-dependencies tests-system-name)))))
 
-(defun run-system-test (system-name)
+(defun run-system-test (system-name index)
   (handler-case
       (progn
-        (format t "~&Testing ASDF system ~a...~%" system-name)
+        (format t "~&~a. Testing ASDF system ~a...~%" index system-name)
         (asdf:test-system system-name)
         nil)
     (error (condition)
@@ -94,8 +108,8 @@ loads and tests the systems."
       (cons system-name condition))))
 
 (defun run-system-tests (system-names)
-  (loop for name in system-names
-        for failure = (run-system-test name)
+  (loop for i = 0 then (1+ i) for name in system-names
+        for failure = (run-system-test name i)
         when failure collect failure))
 
 (defun verbose-checks-p ()
@@ -113,6 +127,7 @@ loads and tests the systems."
             count (namestring warnings-file))))
 
 (defun run-function (function &key verbose)
+  "Run `function`, capturing warnings to a file when `verbose` is `nil`."
   (let ((warning-count 0)
         (warnings-file (get-warnings-filepath)))
     (flet ((invoke-with-warning-capture (warnings-stream)
@@ -137,32 +152,40 @@ loads and tests the systems."
                 (invoke-with-warning-capture stream)))
         (report-suppressed-warnings warning-count warnings-file)))))
 
-(defun project-check-status (source-directory &key verbose)
+(defun run-tests-under (source-dirpath &key verbose)
+  "Runs all tests under `source-dirpath`.
+Returns 0 if there are no failures, and 1 if there are any failures."
   (handler-case
-      (let ((system-names (local-system-names source-directory)))
+      (let ((system-names (get-local-system-names source-dirpath)))
         ;; Install third-party dependencies before opening an ASDF session
         ;; so Quicklisp downloads do not invalidate its action plan.
-        (install-project-dependencies system-names)
+        (ensure-all-dependencies system-names)
 
         (asdf/session:with-asdf-session (:override t)
-          ;; Compile and load the top-level application and all dependent subsystems.
-          (ql:quickload *main-system* :silent (not verbose) :verbose verbose)
+          ;; Compile and load every discovered primary system.  Using the same
+          ;; discovery as the test phase keeps new .asd files covered by CI.
+          (ql:quickload system-names :silent (not verbose) :verbose verbose)
           ;; Run all subsystems' tests.
           (let ((failures (run-system-tests system-names)))
             (when failures
               (error "~d ASDF system~:p failed project checks."
                      (length failures))))
-          (format t "~&ALL PROJECT CHECKS PASSED~%")
-          0))
+          (format t "~%ALL PROJECT CHECKS PASSED~%"))
+        0) ;; success exit code
     (error (condition)
       (format *error-output* "~&PROJECT CHECKS FAILED: ~a~%" condition)
-      1)))
+      1))) ;; failure exit code
 
-(defun run-project-checks ()
-  (let* ((verbose (verbose-checks-p)))
+(defun run-tests-and-quit ()
+  "Run all tests for the project and quit with exit status."
+  (let ((verbose (verbose-checks-p)))
     (uiop:quit
      (run-function
-      (lambda () (project-check-status (get-source-directory) :verbose verbose))
+      (lambda () (run-tests-under (get-source-dirpath) :verbose verbose))
       :verbose verbose))))
 
-(run-project-checks)
+(defun main ()
+  (run-tests-and-quit))
+
+#+run-main
+(apply #'main roswell:*argv*)

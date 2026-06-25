@@ -1,4 +1,4 @@
-(defsystem spam
+(defsystem "spam"
   :name "spam"
   :author "Peter Seibel <peter@gigamonkeys.com>"
   :version "1.0"

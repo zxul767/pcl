@@ -1,4 +1,4 @@
-(in-package :dev.zxul767.spam)
+(in-package #:dev.zxul767.spam)
 
 ;; ----------------------------------------------------------------------------
 ;; Corpus Building
@@ -8,9 +8,10 @@
 (defparameter *corpus-file-max-chars* (* 10 1024)) ;; 10Kb
 
 (defun add-directory-to-corpus (directory type corpus &key recursively)
-  (walk-directory directory
-                  #'(lambda (filepath) (add-file-to-corpus filepath type corpus))
-                  :recursively recursively))
+  (path:walk-directory
+   directory
+   #'(lambda (filepath) (add-file-to-corpus filepath type corpus))
+   :recursively recursively))
 
 (defun add-file-to-corpus (filepath type corpus)
   (vector-push-extend `(,filepath ,type) corpus))

@@ -45,10 +45,6 @@
 ;; -----------------------------------------------------------------------------
 ;; General Utilities & Macros
 ;; -----------------------------------------------------------------------------
-(defmacro sort! (sequence predicate &rest args)
-  (assert (symbolp sequence))
-  `(setf ,sequence (sort ,sequence ,predicate ,@args)))
-
 (defun human-readable-size (size-in-bytes)
   (with-output-to-string (stream)
     (format stream "~,3f MB" (bytes->megabytes size-in-bytes))))

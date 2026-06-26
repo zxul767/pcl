@@ -30,6 +30,10 @@
   (defun gensyms (count)
     (loop repeat count collect (gensym))))
 
+(defmacro sort! (sequence predicate &rest args)
+  (assert (symbolp sequence))
+  `(setf ,sequence (sort ,sequence ,predicate ,@args)))
+
 (defmacro with-safe-io-syntax (&body body)
   `(with-standard-io-syntax
      (let ((*read-eval* nil))

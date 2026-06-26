@@ -12,6 +12,7 @@
    #:mappend
    #:once-only
    #:prog-nil
+   #:sort!
    #:with-labels
    #:with-gensyms
    #:with-safe-io-syntax

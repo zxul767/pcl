@@ -18,7 +18,6 @@
 ;;       (write-byte (char-code (char string i)) out))))
 (indent:define-indentation
     define-binary-type (&lambda &lambda &rest (&whole 2 4 &rest 2)))
-(indent:initialize-slime)
 
 (defconstant +null+ (code-char 0))
 

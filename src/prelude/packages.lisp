@@ -11,7 +11,7 @@
    #:let-return
    #:mappend
    #:once-only
-   #:prog-nil
+   #:progn-nil
    #:sort!
    #:with-labels
    #:with-gensyms

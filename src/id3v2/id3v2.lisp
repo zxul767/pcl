@@ -282,7 +282,7 @@
     (in-padding () nil)))
 
 (defun show-error (message &rest args)
-  (prog-nil
+  (progn-nil
     (unless *silence-errors*
       (format t "ERROR: ~a~%" (apply #'format nil message args)))))
 

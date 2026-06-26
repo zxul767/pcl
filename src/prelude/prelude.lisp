@@ -67,7 +67,7 @@
      ,@body
      ,result))
 
-(defmacro prog-nil (&body body)
+(defmacro progn-nil (&body body)
   `(progn ,@body nil))
 
 (defmacro with-gensyms ((&rest symbols) &body body)

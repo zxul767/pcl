@@ -66,35 +66,38 @@ loads and tests the systems."
 
 It DOES NOT compile/load any such dependencies the way `(ql:quickload ...)` would do.
 "
-  (unless (member system-name seen :test #'string=)
-    (let ((seen (cons system-name seen)) ;; track systems to avoid infinite loops
-          (asdf-system (asdf:find-system system-name nil))
-          (quicklisp-system (ql-dist:find-system system-name)))
-      (cond
-        (asdf-system
-         ;; if a system is already in the ASDF registry, we still need to ensure
-         ;; all its direct and transitive dependencies are locally available too.
-         (dolist (dependency (asdf:system-depends-on asdf-system))
-           (dolist (name (resolve-dependency-names dependency))
-             (ensure-system-dependencies name seen))))
-        (quicklisp-system
-         ;; this is what actually downloads and registers third-party dependencies.
-         (ql-dist:ensure-installed quicklisp-system)
-         (dolist (dependency (ql-dist:required-systems quicklisp-system))
-           (ensure-system-dependencies dependency seen)))
-        (t
-         (error "ASDF/Quicklisp dependency ~s was not found." system-name))))))
+  (if (member system-name seen :test #'string=)
+      seen
+      (let ((seen (cons system-name seen)) ;; track systems to avoid infinite loops
+            (asdf-system (asdf:find-system system-name nil))
+            (quicklisp-system (ql-dist:find-system system-name)))
+        (cond
+          (asdf-system
+           ;; if a system is already in the ASDF registry, we still need to ensure
+           ;; all its direct and transitive dependencies are locally available too.
+           (dolist (dependency (asdf:system-depends-on asdf-system))
+             (dolist (name (resolve-dependency-names dependency))
+               (setf seen (ensure-system-dependencies name seen)))))
+          (quicklisp-system
+           ;; this is what actually downloads and registers third-party dependencies.
+           (ql-dist:ensure-installed quicklisp-system)
+           (dolist (dependency (ql-dist:required-systems quicklisp-system))
+             (setf seen (ensure-system-dependencies dependency seen))))
+          (t
+           (error "ASDF/Quicklisp dependency ~s was not found." system-name)))
+        seen)))
 
 (defun ensure-all-dependencies (system-names)
   "Ensure all direct and transitive dependencies for `system-names`
 (and their respective test systems) are locally available."
-  (dolist (system-name system-names)
-    ;; install the system itself...
-    (ensure-system-dependencies system-name)
-    (let ((tests-system-name (format nil "~a/tests" system-name)))
-      (when (asdf:find-system tests-system-name nil)
-        ;; ...and its test system
-        (ensure-system-dependencies tests-system-name)))))
+  (let (seen)
+    (dolist (system-name system-names)
+      ;; install the system itself...
+      (setf seen (ensure-system-dependencies system-name seen))
+      (let ((tests-system-name (format nil "~a/tests" system-name)))
+        (when (asdf:find-system tests-system-name nil)
+          ;; ...and its test system
+          (setf seen (ensure-system-dependencies tests-system-name seen)))))))
 
 (defun run-system-test (system-name index)
   (handler-case

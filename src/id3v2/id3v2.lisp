@@ -305,7 +305,7 @@
 (defun show-tag-headers (directory)
   "Show the ID3 tag header for all mp3 files under `directory'"
   (with-labels
-      (walk-directory directory #'show-tag-header
+      (path:walk-directory directory #'show-tag-header
           :recursively t
           :file-condition (and-pipe mp3-p id3-p))
     (show-tag-header (file)
@@ -315,15 +315,15 @@
                   identifier major-version revision flags size (enough-namestring file)))))))
 
 (defun show-mp3s (directory)
-  (walk-directory directory #'show-mp3-metadata
-                  :recursively t
-                  :file-condition #'mp3-p))
+  (path:walk-directory directory #'show-mp3-metadata
+                       :recursively t
+                       :file-condition #'mp3-p))
 
 (defun count-versions (directory)
   "Count the total number of mp3 files grouped by the version of their ID3 tags"
   (let ((version-counts (mapcar #'(lambda (version) (cons version 0)) '(2 3 4))))
     (with-labels
-        (walk-directory directory #'count-version
+        (path:walk-directory directory #'count-version
             :recursively t
             :file-condition #'mp3-p)
       (count-version (file)
@@ -335,7 +335,7 @@
 
 (defun mp3-p (filepath)
   "Does `filepath' point to what seems to be an mp3 file?"
-  (and (file-pathname-p filepath)
+  (and (path:file-pathname-p filepath)
        (string-equal "mp3" (pathname-type filepath))))
 
 (defun id3-p (filepath)
@@ -392,7 +392,7 @@
 (defun frame-types-in-directory (directory &key sort-by)
   (let-return (ids)
     (with-labels
-        (walk-directory directory #'collect
+        (path:walk-directory directory #'collect
             :recursively t
             :file-condition #'mp3-p)
       (collect (filepath)

@@ -8,4 +8,4 @@
   :components
   ((:file "packages")
    (:file "id3v2" :depends-on ("packages")))
-  :depends-on (:prelude :macrotools :functools :pathnames :binary))
+  :depends-on (:prelude :functools :pathnames :binary))

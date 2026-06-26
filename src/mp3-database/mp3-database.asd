@@ -1,7 +1,4 @@
-(defpackage :dev.zxul767.mp3-database-system (:use :asdf :cl))
-(in-package :dev.zxul767.mp3-database-system)
-
-(defsystem mp3-database
+(defsystem "mp3-database"
   :name "mp3-database"
   :author "Peter Seibel <peter@gigamonkeys.com>"
   :version "1.0"
@@ -11,4 +8,4 @@
   :components
   ((:file "packages")
    (:file "mp3-database" :depends-on ("packages")))
-  :depends-on (:str :prelude :macrotools :functools :pathnames :id3v2))
+  :depends-on (:str :prelude :functools :pathnames :id3v2))

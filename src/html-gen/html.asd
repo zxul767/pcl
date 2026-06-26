@@ -13,4 +13,4 @@
   ((:file "packages")
    (:file "html" :depends-on ("packages"))
    (:file "css" :depends-on ("packages" "html")))
-  :depends-on (:macrotools))
+  :depends-on (:prelude))

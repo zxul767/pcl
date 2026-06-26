@@ -1,7 +1,7 @@
 ;; The following are a set of macros which are not actually used anywhere
 ;; in the mp3 browser project, but are useful exercises to master macros.
 ;; 
-;; TODO: turn them into a package that depends on the `macrotools` package
+;; TODO: turn them into a package that depends on the `prelude` package
 ;; where the `with-gensyms` and `with-labels` macros live.
 
 (defmacro condlet (clauses &body body)
@@ -28,24 +28,24 @@ will end up being equivalent to:
 
       ;; clauses :: (clause+)
       (extract-all-variables (clauses)
-        (extract-variables (mappend #'rest clauses)))
+                             (extract-variables (mappend #'rest clauses)))
 
       ;; clause :: (condition bind-form+)
       (build-cond-clause (clause)
-        (let ((condition (first clause))
-              (bind-forms (rest clause)))
-          `(,condition
-            (let ,bind-forms
-              (,body-fn-name ,@(build-invocation-args bind-forms))))))
+                         (let ((condition (first clause))
+                               (bind-forms (rest clause)))
+                           `(,condition
+                             (let ,bind-forms
+                               (,body-fn-name ,@(build-invocation-args bind-forms))))))
 
       ;; bind-forms: ((variable expression) ...)
       (build-invocation-args (bind-forms)
-        (loop for var in (extract-variables bind-forms)
-              append `(,(as-keyword var) ,var)))
+                             (loop for var in (extract-variables bind-forms)
+                                   append `(,(as-keyword var) ,var)))
 
       (extract-variables (bind-forms)
-        (remove-duplicates
-         (mapcar #'first bind-forms))))))
+                         (remove-duplicates
+                          (mapcar #'first bind-forms))))))
 
 
 (defmacro do-tuples/close (tuple source &body body)
@@ -86,15 +86,15 @@ NIL
                                     rest))))))
 
     (build-tuple-call (body-fn-name tuple-size rest)
-      `(,body-fn-name ,@(loop for n below tuple-size collect `(nth ,n ,rest))))
+                      `(,body-fn-name ,@(loop for n below tuple-size collect `(nth ,n ,rest))))
 
     (build-wraparound-tuple-calls (body-fn-name tuple-size source rest)
-      (mapcar #'(lambda (args) `(,body-fn-name ,@args))
-              (build-wraparound-tuple-call-args tuple-size source rest)))
+                                  (mapcar #'(lambda (args) `(,body-fn-name ,@args))
+                                          (build-wraparound-tuple-call-args tuple-size source rest)))
 
     (build-wraparound-tuple-call-args (tuple-size source rest)
-      (let ((limit (- tuple-size 2)))
-        (loop for i upto limit
-              collect
-              (append (loop for n from i upto limit collect `(nth ,n ,rest))
-                      (loop for n from 0 upto i collect `(nth ,n ,source))))))))
+                                      (let ((limit (- tuple-size 2)))
+                                        (loop for i upto limit
+                                              collect
+                                              (append (loop for n from i upto limit collect `(nth ,n ,rest))
+                                                      (loop for n from 0 upto i collect `(nth ,n ,source))))))))

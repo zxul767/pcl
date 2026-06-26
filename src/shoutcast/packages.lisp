@@ -2,7 +2,7 @@
   (:use
    #:cl
    #:net.aserve
-   #:dev.zxul767.macrotools
+   #:dev.zxul767.prelude
    #:dev.zxul767.id3v2)
   (:export
    #:song

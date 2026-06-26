@@ -5,5 +5,14 @@
   (:export
    #:as-keyword
    #:ensure-list
+   #:let-guard
+   #:let-when
+   #:let-when*
+   #:let-return
    #:mappend
+   #:once-only
+   #:prog-nil
+   #:with-labels
+   #:with-gensyms
+   #:with-safe-io-syntax
    #:zip))

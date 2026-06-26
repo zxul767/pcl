@@ -12,4 +12,4 @@
   ((:file "packages")
    (:file "routes" :depends-on ("web"))
    (:file "web" :depends-on ("packages")))
-  :depends-on (:aserve :macrotools :html))
+  :depends-on (:aserve :prelude :html))

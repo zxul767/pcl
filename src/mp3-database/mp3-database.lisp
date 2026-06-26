@@ -1,4 +1,4 @@
-(in-package :dev.zxul767.mp3-database)
+(in-package #:dev.zxul767.mp3-database)
 
 (defparameter *default-table-size* 1000)
 (defparameter *mp3-table* nil)

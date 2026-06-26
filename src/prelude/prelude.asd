@@ -7,4 +7,5 @@
   :description "Basic library functions that extend the CL standard library"
   :components
   ((:file "packages")
-   (:file "prelude" :depends-on ("packages"))))
+   (:file "prelude" :depends-on ("packages")))
+  :depends-on (:trivial-indent))

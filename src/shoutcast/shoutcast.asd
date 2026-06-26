@@ -8,4 +8,4 @@
   :components
   ((:file "packages")
    (:file "shoutcast" :depends-on ("packages")))
-  :depends-on (:aserve :macrotools :id3v2))
+  :depends-on (:aserve :prelude :id3v2))

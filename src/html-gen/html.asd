@@ -1,6 +1,3 @@
-(defpackage :dev.zxul767.html-system (:use :asdf :cl))
-(in-package :dev.zxul767.html-system)
-
 (defsystem html
   :name "html"
   :author "Peter Seibel <peter@gigamonkeys.com>"

@@ -76,7 +76,7 @@ value returned by `current-song'"))
 (defparameter *shoutcast-request-timeout-in-seconds* (* 60 60 24 7 52 10))
 
 ;; The number of bytes of mp3 data to send inbetween each metadata packet transmission
-(defparameter *shoutcast-metadata-interval-in-bytes* (expt 2 15))
+(defparameter *shoutcast-metadata-interval-in-bytes* 40000)
 
 (defparameter *songs-source-type* 'singleton)
 
@@ -203,4 +203,6 @@ value returned by `current-song'"))
       do (setf (aref buffer i) (char-code char)))
     buffer))
 
-(publish :path "/stream.mp3" :function 'shoutcast)
+;; FIXME: will this run when the module is loaded? should we run this automatically
+;; or put it behind an `init` o `start-streaming-server` function?
+(publish :path "/stream.mp3" :function #'shoutcast)

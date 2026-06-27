@@ -94,7 +94,7 @@
 (defun add-songs (playlist column-name values)
   (with-labels
       (let ((column-table (build-column-table column-name values)))
-        (do-rows (row (select :from *mp3-table* :where (in column-name column-table)))
+        (do-rows (row (select :from (get-mp3-table) :where (in column-name column-table)))
           (insert-row row (songs playlist)))
         (update-current-song playlist))
     (build-column-table (column-name values)

@@ -1,4 +1,4 @@
-(defsystem functools
+(defsystem "functools"
   :name "functools"
   :author "Willebaldo Gomez <willebaldo.gomez@gmail.com>"
   :version "0.0.1"
@@ -10,7 +10,7 @@
    (:file "functools" :depends-on ("packages")))
   :in-order-to ((test-op (test-op "functools/tests"))))
 
-(defsystem functools/tests
+(defsystem "functools/tests"
   :name "functools/tests"
   :author "Willebaldo Gomez <willebaldo.gomez@gmail.com>"
   :version "0.0.1"

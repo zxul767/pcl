@@ -3,8 +3,8 @@
 (defmacro and-pipe (&rest functions)
   "Generate a function that ANDs `functions` in a short-circuiting pipeline.
 All functions are assumed to have the same signature."
-  `#'(lambda (&rest args)
-       (and ,@(loop for fn in functions collect `(apply #',fn args)))))
+  `(lambda (&rest args)
+     (and ,@(loop for fn in functions collect `(apply #',fn args)))))
 
 (defun negate (function)
   "Generate a function that is the logical opposite of `function'"

@@ -1,4 +1,4 @@
-(defsystem binary
+(defsystem "binary"
   :name "binary"
   :author "Peter Seibel <peter@gigamonkeys.com>"
   :version "1.0"

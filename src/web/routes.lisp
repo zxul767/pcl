@@ -1,4 +1,4 @@
-(in-package :dev.zxul767.web)
+(in-package #:dev.zxul767.web)
 
 (defvar *seconds-in-a-day* (* 60 60 24))
 

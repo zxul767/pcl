@@ -1,11 +1,11 @@
-(defsystem "spam"
-  :name "spam"
+(defsystem "spam-filter"
+  :name "spam-filter"
   :author "Peter Seibel <peter@gigamonkeys.com>"
   :version "1.0"
   :maintainer "Willebaldo Gomez <willebaldo.gomez@gmail.com>"
   :licence "BSD"
-  :description "Spam filter"
+  :description "A bayesian spam filter"
   :components
   ((:file "packages")
-   (:file "spam" :depends-on ("packages")))
+   (:file "spam-filter" :depends-on ("packages")))
   :depends-on (:cl-ppcre :pathnames))

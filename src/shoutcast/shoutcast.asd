@@ -1,4 +1,4 @@
-(defsystem shoutcast
+(defsystem "shoutcast"
   :name "shoutcast"
   :author "Peter Seibel <peter@gigamonkeys.com>"
   :version "1.0"

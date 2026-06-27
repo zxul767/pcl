@@ -1,16 +1,14 @@
 (defpackage #:dev.zxul767.shoutcast
-  (:use
-   #:cl
-   #:net.aserve
-   #:dev.zxul767.prelude
-   #:dev.zxul767.id3v2)
-  (:export
-   #:song
-   #:file
-   #:title
-   #:id3-size
-   #:find-songs-source
-   #:current-song
-   #:still-current-p
-   #:maybe-move-to-next-song
-   #:*songs-source-type*))
+  (:use #:cl
+        #:net.aserve
+        #:dev.zxul767.prelude
+        #:dev.zxul767.id3v2)
+  (:export #:song
+           #:file
+           #:title
+           #:id3-size
+           #:find-songs-source
+           #:current-song
+           #:still-current-p
+           #:maybe-move-to-next-song
+           #:*songs-source-type*))

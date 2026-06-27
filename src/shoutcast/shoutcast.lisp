@@ -1,4 +1,4 @@
-(in-package :dev.zxul767.shoutcast)
+(in-package #:dev.zxul767.shoutcast)
 
 (defgeneric current-song (songs-source)
   (:documentation "Return the currently playing song (or NIL) in `songs-source'"))
@@ -96,15 +96,16 @@ value returned by `current-song'"))
 (defun prepare-icy-response (request metadata-interval)
   (logger "preparing icy response headers...")
   (setf (request-reply-protocol-string request) "ICY")
-  (loop for (key value) in (reverse
-                            `((:|icy-metaint| ,(princ-to-string metadata-interval))
-                              (:|icy-notice1| "...")
-                              (:|icy-notice2| "...")
-                              (:|icy-name| "Lisp Shoutcast Server")
-                              (:|icy-genre| "Unknown")
-                              (:|icy-url| ,(request-uri request))
-                              (:|icy-pub| "1")))
-        do (setf (reply-header-slot-value request key) value)))
+  (loop :for (key value)
+          :in (reverse
+               `((:|icy-metaint| ,(princ-to-string metadata-interval))
+                 (:|icy-notice1| "...")
+                 (:|icy-notice2| "...")
+                 (:|icy-name| "Lisp Shoutcast Server")
+                 (:|icy-genre| "Unknown")
+                 (:|icy-url| ,(request-uri request))
+                 (:|icy-pub| "1")))
+        :do (setf (reply-header-slot-value request key) value)))
 
 ;; iTunes, despite claiming to speak HTTP/1.1, doesn't understand chunked-transfer
 ;; encoding, so we just turn it off.

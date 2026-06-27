@@ -2,18 +2,17 @@
 
 (defpackage #:dev.zxul767.prelude
   (:use #:cl)
-  (:export
-   #:as-keyword
-   #:ensure-list
-   #:let-guard
-   #:let-when
-   #:let-when*
-   #:let-return
-   #:mappend
-   #:once-only
-   #:progn-nil
-   #:sort!
-   #:with-labels
-   #:with-gensyms
-   #:with-safe-io-syntax
-   #:zip))
+  (:export #:as-keyword
+           #:ensure-list
+           #:let-guard
+           #:let-when
+           #:let-when*
+           #:let-return
+           #:mappend
+           #:once-only
+           #:progn-nil
+           #:sort!
+           #:with-labels
+           #:with-gensyms
+           #:with-safe-io-syntax
+           #:zip))

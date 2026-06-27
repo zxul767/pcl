@@ -35,12 +35,12 @@
 
 (in-suite ensure-list-suite)
 
-(test ensure-list-is-noop-for-list
+(test should-be-identity-for-list-arg
   (let ((singleton '(1)))
     (is (eq (std:ensure-list singleton)
             singleton))))
 
-(test ensure-list-wraps-atoms
+(test should-wrap-atoms-in-list
   (is (equal (std:ensure-list 1)
              '(1))))
 

@@ -7,5 +7,6 @@
   :description "Binary data I/O library"
   :components
   ((:file "packages")
-   (:file "binary" :depends-on ("packages")))
+   (:file "binary" :depends-on ("packages"))
+   (:file "primitive-types" :depends-on ("binary")))
   :depends-on (:prelude :trivial-indent))

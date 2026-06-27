@@ -1,4 +1,4 @@
-(in-package :dev.zxul767.binary)
+(in-package #:dev.zxul767.binary)
 
 ;; Tell SLIME to indent certain macros we'll define later in this file
 ;; in special ways (basically so they indent as if they were defun bodies)

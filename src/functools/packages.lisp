@@ -2,5 +2,4 @@
 
 (defpackage #:dev.zxul767.functools
   (:use #:cl)
-  (:export #:negate
-           #:and-pipe))
+  (:export #:and-pipe))

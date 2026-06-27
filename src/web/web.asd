@@ -1,7 +1,4 @@
-(defpackage :dev.zxul767.web-system (:use :asdf :cl))
-(in-package :dev.zxul767.web-system)
-
-(defsystem web
+(defsystem "web"
   :name "web"
   :author "Peter Seibel <peter@gigamonkeys.com>"
   :version "1.0"

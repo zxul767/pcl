@@ -1,4 +1,4 @@
-(in-package :dev.zxul767.web)
+(in-package #:dev.zxul767.web)
 
 (define-html-macro :standard-page ((&key title) &body body)
   `(:html

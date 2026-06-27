@@ -3,4 +3,4 @@
 (defpackage #:dev.zxul767.functools-tests
   (:use #:cl #:fiveam)
   (:local-nicknames (#:ft #:dev.zxul767.functools))
-  (:export #:run-tests #:master-suite #:negate-suite))
+  (:export #:run-tests))

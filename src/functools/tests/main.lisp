@@ -1,12 +1,12 @@
 (in-package #:dev.zxul767.functools-tests)
 
 (def-suite master-suite
-  :description "The master test suite for `functools` subsystem")
+  :description "The master test suite for the `functools` subsystem.")
 
 ;; -----------------------------------------------------------------------------
 (def-suite and-pipe-suite
-  :description "Test the `and-pipe` macro."
   :in master-suite)
+
 (in-suite and-pipe-suite)
 
 (test should-expand-to-function-pipeline

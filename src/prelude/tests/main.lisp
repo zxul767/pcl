@@ -9,12 +9,12 @@
 
 (in-suite zip-suite)
 
-(test should-zip-two-lists
+(test should-pair-elements-from-2-lists
   (is (equal
        (std:zip '(1 2 3) '(2 4 6))
        '((1 2) (2 4) (3 6)))))
 
-(test should-zip-several-lists
+(test should-group-elements-from-n-lists
   (is (equal
        (std:zip '(1 2 3)
                 '("one" "two" "three")
@@ -23,6 +23,11 @@
        '((1 "one" "unu" "un")
          (2 "two" "doi" "deux")
          (3 "three" "trei" "trois")))))
+
+(test should-pair-up-until-shortest-list
+  (is (equal
+       (std:zip '(1 2 3) '(0 1 2 3 4 5) '(0 -1))
+       '((1 0 0) (2 1 -1)))))
 
 ;; -----------------------------------------------------------------------------
 (def-suite ensure-list-suite

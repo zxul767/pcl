@@ -55,9 +55,9 @@
           :keyword)))
 
 (test sort!-sorts-sequence-in-place
-  (let ((seq '(5 4 3 2 1)))
-    (is (equal (std:sort! seq #'<)
-               '(1 2 3 4 5)))))
+  (let ((items (list 5 4 3 2 1)))
+    (is (equal (std:sort! items #'<)
+               (list 1 2 3 4 5)))))
 
 ;; -----------------------------------------------------------------------------
 (def-suite let-when-suite

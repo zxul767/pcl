@@ -82,7 +82,7 @@ value returned by `current-song'"))
 
 (defun shoutcast (request entity)
   (with-http-response
-      (request entity :content-type "audio/MP3"
+      (request entity :content-type "audio/mp3"
                       :timeout *shoutcast-request-timeout-in-seconds*)
     (prepare-icy-response request *shoutcast-metadata-interval-in-bytes*)
     (let ((wants-metadata-p (header-slot-value request :icy-metadata)))
@@ -107,14 +107,6 @@ value returned by `current-song'"))
                  (:|icy-pub| "1")))
         :do (setf (reply-header-slot-value request key) value)))
 
-;; iTunes, despite claiming to speak HTTP/1.1, doesn't understand chunked-transfer
-;; encoding, so we just turn it off.
-;; (turn-off-chunked-transfer-encoding request))
-
-(defun turn-off-chunked-transfer-encoding (request)
-  (setf (request-reply-strategy request)
-        (remove :chunked (request-reply-strategy request))))
-
 (defun logger (message &rest args)
   (format *trace-output* "~&")
   (apply #'format *trace-output* message args)
@@ -131,10 +123,11 @@ value returned by `current-song'"))
                 next-metadata-interval
                 metadata-interval)
         while next-metadata-interval)
+    ;; FIXME: from the logs, it looks like this `error` handler is invoked
+    ;; but then the interactive debugger pops up anyway. why?
     (error (e)
       (logger "Caught error in stream-songs: ~a" e))))
 
-;; FIXME: should we merge `stream-current-song' and `stream-mp3-file'?
 (defun stream-current-song
     (stream songs-source next-metadata-interval metadata-interval)
   (let-when ((song (current-song songs-source)))

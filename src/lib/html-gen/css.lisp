@@ -22,7 +22,7 @@
     (raw-string processor ";")))
 
 (defun process-css (processor sexp)
-  (destructuring-bind (selector &rest attributes) sexp
+  (dbind (selector &rest attributes) sexp
     (freshline processor)
     (emit-css-selector processor selector)
     (freshline processor)
@@ -62,9 +62,9 @@
 
 (defun parse-selector (selector)
   (if (member (first selector) '(:class :pseudo-class :id))
-    (destructuring-bind (&key class pseudo-class id) selector
+    (dbind (&key class pseudo-class id) selector
       (values nil class pseudo-class id))
-    (destructuring-bind (tag &key class pseudo-class id) selector
+    (dbind (tag &key class pseudo-class id) selector
       (values tag class pseudo-class id))))
 
 (defun process-css-key-or-value (processor form)

@@ -146,3 +146,10 @@ the final expansion would be:
 ;; one nesting level by taking advantage of the fact that (let ((n <expr>) (g n)) ...)
 ;; rebinds `n' to a new value, but also binds `g' to the previous value of `n' at
 ;; the same time (think of it as `psetf')
+
+(defmacro dbind (pattern data &body body)
+  "Short alias for destructuring-bind.
+   
+   Binds variables in PATTERN to corresponding parts of DATA,
+   then executes BODY with those bindings in place."
+  `(destructuring-bind ,pattern ,data ,@body))

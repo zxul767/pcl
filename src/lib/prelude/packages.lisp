@@ -3,6 +3,7 @@
 (defpackage #:dev.zxul767.prelude
   (:use #:cl)
   (:export #:as-keyword
+           #:dbind
            #:ensure-list
            #:let-guard
            #:let-when

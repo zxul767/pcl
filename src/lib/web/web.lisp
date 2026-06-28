@@ -61,7 +61,7 @@
             collect (generate-request-param-binding param function-name request))
 
     (generate-request-param-binding (param function-name request)
-      (destructuring-bind (name type &optional default-value sticky) param
+      (dbind (name type &optional default-value sticky) param
         (let ((cookie-name (symbol->cookie-name name function-name sticky)))
           `(,name (or ,(generate-value-from-query-string name type request)
                       ,(generate-value-from-cookie cookie-name type request)
@@ -80,7 +80,7 @@
             when (generate-set-cookie-code function-name param request) collect it)))
 
 (defun generate-set-cookie-code (function-name param request)
-  (destructuring-bind (name type &optional default-value sticky) param
+  (dbind (name type &optional default-value sticky) param
     (declare (ignore type default-value))
     (if sticky
         `(when ,name

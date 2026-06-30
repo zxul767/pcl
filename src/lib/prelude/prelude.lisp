@@ -95,8 +95,11 @@ Example:
   (with-labels
       (let ((hints (mapcar #'extract-hint symbols))
             (names (mapcar #'extract-name symbols)))
-        `(let ,(loop for name in names for hint in hints collect `(,name (gensym ,hint)))
+        `(let ,(loop for name in names
+                     for hint in hints
+                     collect `(,name (gensym ,hint)))
            ,@body))
+    ;; helpers
     (extract-hint (symbol)
       (or (and (consp symbol) (second symbol))
           (string symbol)))

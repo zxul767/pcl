@@ -113,19 +113,19 @@ stack) currently being read/written."
          (setf (get ',name 'superclasses) ',superclasses))
 
        (defclass ,name ,superclasses
-         ,(generate-defclass-slots slots))
+         ,(gen-defclass-slots slots))
 
        ,@read-method
 
        (defmethod write-object progn ((,object ,name) ,stream)
          (with-slots ,(all-combined-slots slots superclasses) ,object
-           ,@(generate-write-slot-expressions slots stream))))))
+           ,@(gen-write-slot-expressions slots stream))))))
 
-(defun generate-defclass-slots (slots)
+(defun gen-defclass-slots (slots)
   (loop for (name _) in slots
         collect `(,name :initarg ,(as-keyword name) :accessor ,name)))
 
-(defun generate-write-slot-expressions (slots stream)
+(defun gen-write-slot-expressions (slots stream)
   (flet ((slot->write-value-statement (slot)
            (with-slot-parts (name type args) slot
              `(write-value ',type ,stream ,name ,@args))))
@@ -163,9 +163,9 @@ stack) currently being read/written."
     `(define-generic-binary-class ,name ,superclasses ,slots
        (defmethod read-object progn ((,object ,name) ,stream)
          (with-slots ,(all-combined-slots slots superclasses) ,object
-           ,@(generate-read-slot-expressions slots stream))))))
+           ,@(gen-read-slot-expressions slots stream))))))
 
-(defun generate-read-slot-expressions (slots stream)
+(defun gen-read-slot-expressions (slots stream)
   (flet ((slot->read-value-expression (slot)
            (with-slot-parts (name type args) slot
              `(setf ,name (read-value ',type ,stream ,@args)))))
@@ -190,18 +190,17 @@ stack) currently being read/written."
     (with-gensyms (type object stream)
       `(define-generic-binary-class ,name ,superclasses ,slots
          (defmethod read-value ((,type (eql ',name)) ,stream &key)
-           (let* ,(generate-read-slot-bindings slots stream)
-             (let ((,object (make-instance ,class-finder ,@(generate-slot-keywords slots))))
-               (read-object ,object ,stream)
-               ,object)))))))
+           (let* ,(gen-read-slot-bindings slots stream)
+             (let-return (,object (make-instance ,class-finder ,@(gen-slot-keywords slots)))
+               (read-object ,object ,stream))))))))
 
-(defun generate-read-slot-bindings (slots stream)
+(defun gen-read-slot-bindings (slots stream)
   (flet ((slot->binding (slot)
            (with-slot-parts (name type args) slot
              `(,name (read-value ',type ,stream ,@args)))))
     (mapcar #'slot->binding slots)))
 
-(defun generate-slot-keywords (slots)
+(defun gen-slot-keywords (slots)
   (loop for (name _) in slots append `(,(as-keyword name) ,name)))
 
 ;; -----------------------------------------------------------------------------

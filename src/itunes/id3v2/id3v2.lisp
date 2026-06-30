@@ -77,11 +77,11 @@
 (define-binary-type id3-tag-size ()
   (unsigned-integer :bytes 4 :bits-per-byte 7))
 
-(define-binary-type optional (type if)
+(define-binary-type optional (type condition)
   (:reader (in)
-    (when if (read-value type in)))
+    (when condition (read-value type in)))
   (:writer (out value)
-    (when if (write-value type out value))))
+    (when condition (write-value type out value))))
 
 (define-tagged-binary-class id3-tag ()
     ((:class-finder (case major-version
@@ -108,7 +108,8 @@
 (define-binary-type frame-id (length)
   (:reader (in)
     (let ((first-byte (read-byte in)))
-      (if (= first-byte 0) (signal 'in-padding))
+      (when (= first-byte 0)
+        (signal 'in-padding))
       (let ((rest (read-value 'iso-8859-1-string in :length (1- length))))
         (concatenate 'string (string (code-char first-byte)) rest))))
   (:writer (out id)

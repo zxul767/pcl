@@ -54,11 +54,11 @@
 ;; requested fields only:
 ;;
 ;; (defmacro where (&rest clauses)
-;;   (labels ((generate-comparisons (fields)
-;;              (loop while fields collect (generate-comparison (pop fields) (pop fields))))
-;;            (generate-comparison (field value)
+;;   (labels ((gen-comparisons (fields)
+;;              (loop while fields collect (gen-comparison (pop fields) (pop fields))))
+;;            (gen-comparison (field value)
 ;;              `(equal (getf record ,field) ,value)))
-;;     `#'(lambda (record) (and ,@(generate-comparisons clauses)))))
+;;     `#'(lambda (record) (and ,@(gen-comparisons clauses)))))
 
 ;; though i'm a fan of decomposing functions with a lot of detail into smaller functions
 ;; to improve readability--and this particular function seems to do that just fine--i think
@@ -66,9 +66,9 @@
 ;; becoming cryptic:
 
 (defmacro where (&rest clauses)
-  (labels ((generate-comparisons (fields)
+  (labels ((gen-comparisons (fields)
              (loop while fields collect `(equal (getf record ,(pop fields)) ,(pop fields)))))
-    `#'(lambda (record) (and ,@(generate-comparisons clauses)))))
+    `#'(lambda (record) (and ,@(gen-comparisons clauses)))))
 
 ;; this is the original version in the book, which has the same problem as the original
 ;; version of `where':
@@ -87,12 +87,12 @@
 
 ;; and here's the corresponding macro to make it more flexible:
 (defmacro update (condition &rest clauses)
-  (labels ((generate-assignments (fields)
+  (labels ((gen-assignments (fields)
              (loop while fields collect `(setf (getf record ,(pop fields)) ,(pop fields)))))
     `(setf *records*
            (mapcar #'(lambda (record)
                        (when (funcall ,condition record)
-                         ,@(generate-assignments clauses)))
+                         ,@(gen-assignments clauses)))
                    *records*))))
 
 (defun delete-records (condition)

@@ -46,7 +46,7 @@
 
 (defun codegen-html (ops pretty)
   (let ((*pretty* pretty))
-    `(progn ,@(generate-code (optimize-static-output ops)) nil)))
+    `(progn ,@(gen-code (optimize-static-output ops)) nil)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -232,7 +232,7 @@
      when pos do (push-op '(:newline) ops)
      while pos))
 
-(defun generate-code (ops)
+(defun gen-code (ops)
   (loop for op across ops collect (apply #'op->code op)))
 
 (defgeneric op->code (op &rest operands))
@@ -424,10 +424,10 @@
   (multiple-value-bind (attribute-var args)
       (parse-html-macro-lambda-list args)
     (if attribute-var
-      (generate-macro-with-attributes name attribute-var args body)
-      (generate-macro-no-attributes name args body))))
+      (gen-macro-with-attributes name attribute-var args body)
+      (gen-macro-no-attributes name args body))))
 
-(defun generate-macro-with-attributes (name attribute-args args body)
+(defun gen-macro-with-attributes (name attribute-args args body)
   (with-gensyms (attributes form-body)
     (if (symbolp attribute-args) (setf attribute-args `(&rest ,attribute-args)))
     `(eval-when (:compile-toplevel :load-toplevel :execute)
@@ -438,7 +438,7 @@
                  (destructuring-bind (,@args) ,form-body
                    ,@body)))))))
 
-(defun generate-macro-no-attributes (name args body)
+(defun gen-macro-no-attributes (name args body)
   (with-gensyms (form-body)
     `(eval-when (:compile-toplevel :load-toplevel :execute)
        (setf (get ',name 'html-macro-wants-attributes) nil)

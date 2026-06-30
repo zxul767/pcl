@@ -52,34 +52,34 @@
     ;; nonsticky, string parameter with no default value
     (symbol `(,param string nil nil))))
 
-(defun generate-handler-registration (name)
+(defun gen-handler-registration (name)
   `(publish :path ,(format nil "/~(~a~)" name) :function ',name))
 
-(defun generate-request-param-bindings (function-name request-params request)
+(defun gen-request-param-bindings (function-name request-params request)
   (with-labels
       (loop for param in request-params
-            collect (generate-request-param-binding param function-name request))
+            collect (gen-request-param-binding param function-name request))
 
-    (generate-request-param-binding (param function-name request)
+    (gen-request-param-binding (param function-name request)
       (destructuring-bind (name type &optional default-value sticky) param
         (let ((cookie-name (symbol->cookie-name name function-name sticky)))
-          `(,name (or ,(generate-value-from-query-string name type request)
-                      ,(generate-value-from-cookie cookie-name type request)
+          `(,name (or ,(gen-value-from-query-string name type request)
+                      ,(gen-value-from-cookie cookie-name type request)
                       ,default-value)))))
 
-    (generate-value-from-query-string (param-name type request)
+    (gen-value-from-query-string (param-name type request)
       (let ((query-name (symbol->query-name param-name)))
         `(parse-as ',type (request-query-value ,query-name ,request))))
 
-    (generate-value-from-cookie (cookie-name type request)
+    (gen-value-from-cookie (cookie-name type request)
       `(parse-as ',type (get-cookie-value ,cookie-name ,request)))))
 
-(defun generate-set-cookies-code (function-name request-params request)
+(defun gen-set-cookies-code (function-name request-params request)
   (with-labels
       (loop for param in request-params
-            when (generate-set-cookie-code function-name param request) collect it)))
+            when (gen-set-cookie-code function-name param request) collect it)))
 
-(defun generate-set-cookie-code (function-name param request)
+(defun gen-set-cookie-code (function-name param request)
   (destructuring-bind (name type &optional default-value sticky) param
     (declare (ignore type default-value))
     (if sticky
@@ -98,17 +98,17 @@
 (defun extract-headers-code (body)
   (cdr (assoc :headers body)))
 
-(defun generate-custom-headers (body request)
+(defun gen-custom-headers (body request)
   (declare (ignore request))
   (extract-headers-code body))
 
-(defun generate-html-handler (name request request-params body)
+(defun gen-html-handler (name request request-params body)
   (with-gensyms (entity)
     `(defun ,name (,request ,entity)
        (with-http-response (,request ,entity :content-type "text/html")
-         (let* (,@(generate-request-param-bindings name request-params request))
-           ,@(generate-set-cookies-code name request-params request)
-           ,@(generate-custom-headers body request)
+         (let* (,@(gen-request-param-bindings name request-params request))
+           ,@(gen-set-cookies-code name request-params request)
+           ,@(gen-custom-headers body request)
            (with-http-body (,request ,entity)
              (with-html-output ((request-reply-stream ,request))
                (html ,@(strip-headers-code body)))))))))
@@ -116,5 +116,5 @@
 (defmacro define-html-handler (name (request &rest params) &body body)
   (let ((params (mapcar #'normalize-param params)))
     `(progn
-       ,(generate-html-handler name request params body)
-       ,(generate-handler-registration name))))
+       ,(gen-html-handler name request params body)
+       ,(gen-handler-registration name))))

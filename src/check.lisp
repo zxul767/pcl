@@ -232,28 +232,35 @@ It DOES NOT compile/load any such dependencies the way `(ql:quickload ...)` woul
   (and *compile-file-truename*
        (pathname-prefix-p (get-source-dirpath) *compile-file-truename*)))
 
+(defun handle-warning (condition warnings-stream verbosity warning-count style-warning-count)
+  (when (and (typep condition 'style-warning)
+             (compiling-project-file-p)
+             (not (ignorable-warning-p condition)))
+    (incf (car style-warning-count)))
+  (cond
+    ((and (not (full-output-p verbosity))
+          (not (ignorable-warning-p condition)))
+     (incf (car warning-count))
+     (write-warning condition warnings-stream (car warning-count))
+     (muffle-warning condition))
+    ((and (not (full-output-p verbosity))
+          (ignorable-warning-p condition))
+     (muffle-warning condition))))
+
 (defun run-function (function &key verbosity)
   "Run `function`, capturing warnings to a file unless full output is enabled."
-  (let ((warning-count 0)
-        (style-warning-count 0)
+  (let ((warning-count (list 0))
+        (style-warning-count (list 0))
         (warnings-file (get-warnings-filepath)))
     (flet ((invoke-with-warning-capture (warnings-stream)
              (handler-bind
                  ((warning
                     (lambda (condition)
-                      (when (and (typep condition 'style-warning)
-                                 (compiling-project-file-p)
-                                 (not (ignorable-warning-p condition)))
-                        (incf style-warning-count))
-                      (cond
-                        ((and (not (full-output-p verbosity))
-                              (not (ignorable-warning-p condition)))
-                         (incf warning-count)
-                         (write-warning condition warnings-stream warning-count)
-                         (muffle-warning condition))
-                        ((and (not (full-output-p verbosity))
-                              (ignorable-warning-p condition))
-                         (muffle-warning condition))))))
+                      (handle-warning condition
+                                      warnings-stream
+                                      verbosity
+                                      warning-count
+                                      style-warning-count))))
                (let ((*compile-verbose* (full-output-p verbosity))
                      (*compile-print* (full-output-p verbosity))
                      (*load-verbose* (full-output-p verbosity)))
@@ -265,9 +272,9 @@ It DOES NOT compile/load any such dependencies the way `(ql:quickload ...)` woul
                                                 :if-exists :supersede
                                                 :if-does-not-exist :create)
                           (invoke-with-warning-capture stream)))))
-        (report-suppressed-warnings warning-count warnings-file)
-        (report-style-warnings style-warning-count)
-        (if (plusp style-warning-count) 1 result)))))
+        (report-suppressed-warnings (car warning-count) warnings-file)
+        (report-style-warnings (car style-warning-count))
+        (if (plusp (car style-warning-count)) 1 result)))))
 
 (defun run-tests-under (source-dirpath &key verbosity)
   "Runs all tests under `source-dirpath`.

@@ -3,9 +3,6 @@
 (defvar *styles-filepath*
   (asdf:system-relative-pathname 'mp3-browser "mp3-browser.css"))
 
-(defvar *major-version* 1)
-(defvar *minor-version* 0)
-
 (defparameter *mp3s-rootpath* nil)
 (defparameter *random-items-per-page* 25)
 

@@ -5,6 +5,10 @@
 (defvar *playlists-lock*
   (make-process-lock :name "playlists-lock"))
 
+;; forward references to silence compiler warnings
+(defvar *empty-playlist-song*)
+(defvar *end-of-playlist-song*)
+
 (defclass playlist ()
   ((id :accessor id :initarg :id)
    (songs :accessor songs :initform (create-mp3-table))
@@ -118,20 +122,20 @@
   (setf (current-song-index playlist) 0)
   (update-current-song playlist))
 
+(defun order-playlist (playlist)
+  (apply #'sort-rows (songs playlist)
+         (case (ordering playlist)
+           (:genre '(:genre :album :track))
+           (:artist '(:artist :album :track))
+           (:album '(:album :track))
+           (:song '(:song)))))
+
 (defun sort-playlist (playlist ordering)
-  (with-labels
-      (progn (setf (ordering playlist) ordering)
-             (setf (shuffle playlist) :none)
-             (order-playlist playlist)
-             (setf (current-song-index playlist)
-                   (position-of-current-song playlist)))
-    (order-playlist (playlist)
-      (apply #'sort-rows (songs playlist)
-             (case (ordering playlist)
-               (:genre '(:genre :album :track))
-               (:artist '(:artist :album :track))
-               (:album '(:album :track))
-               (:song '(:song)))))))
+  (setf (ordering playlist) ordering)
+  (setf (shuffle playlist) :none)
+  (order-playlist playlist)
+  (setf (current-song-index playlist)
+        (position-of-current-song playlist)))
 
 (defun update-current-song (playlist)
   (unless (equal (file (current-song playlist))
@@ -140,13 +144,12 @@
 
 (defun reset-current-song (playlist)
   (with-labels
-      (setf
-          (current-song playlist)
-          (cond
-            ((empty-p playlist) *empty-playlist-song*)
-            ((at-end-p playlist) *end-of-playlist-song*)
-            (t (row->song (nth-row (current-song-index playlist)
-                                   (songs playlist))))))
+      (setf (current-song playlist)
+            (cond
+              ((empty-p playlist) *empty-playlist-song*)
+              ((at-end-p playlist) *end-of-playlist-song*)
+              (t (row->song (nth-row (current-song-index playlist)
+                                     (songs playlist))))))
     (row->song (entry)
       (with-column-values (file song artist album id3-size) entry
         (make-instance

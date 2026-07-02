@@ -24,10 +24,10 @@
 ;; -----------------------------------------------------------------------------
 ;; Interfaces
 ;; -----------------------------------------------------------------------------
-(defgeneric read-value (type stream &key)
+(defgeneric read-value (type stream &key &allow-other-keys)
   (:documentation "Read a value of the given type from the stream."))
 
-(defgeneric write-value (type stream value &key)
+(defgeneric write-value (type stream value &key &allow-other-keys)
   (:documentation "Write a value as the given type to the stream."))
 
 (defgeneric read-object (object stream)
@@ -72,12 +72,12 @@ stack) currently being read/written."
 ;; -----------------------------------------------------------------------------
 ;; Default Implementations
 ;; -----------------------------------------------------------------------------
-(defmethod read-value ((type symbol) stream &key)
+(defmethod read-value ((type symbol) stream &key &allow-other-keys)
   (let ((object (make-instance type)))
     (read-object object stream)
     object))
 
-(defmethod write-value ((type symbol) stream value &key)
+(defmethod write-value ((type symbol) stream value &key &allow-other-keys)
   (assert (typep value type))
   (write-object value stream))
 
@@ -85,9 +85,32 @@ stack) currently being read/written."
 ;; General Helper Functions & Macros
 ;; -----------------------------------------------------------------------------
 (eval-when (:compile-toplevel :load-toplevel :execute)
+  (define-condition binary-type-style-warning (style-warning simple-condition) ())
+
   (defun assert-all (predicate sequence)
     (dolist (item sequence)
-      (assert (funcall predicate item)))))
+      (assert (funcall predicate item))))
+
+  (defun remember-binary-type-args (type args)
+    (setf (get type 'binary-type-args) args)
+    (setf (get type 'binary-type-args-known-p) t))
+
+  (defun binary-type-argument-keywords (type)
+    (mapcar #'as-keyword (get type 'binary-type-args)))
+
+  (defun warn-about-binary-type-argument (type keyword context)
+    (warn 'binary-type-style-warning
+          :format-control "~s is not a known argument keyword for binary type ~s in ~s."
+          :format-arguments (list keyword type context)))
+
+  (defun validate-binary-type-args (type args context)
+    (when (get type 'binary-type-args-known-p)
+      (let ((allowed-keywords (binary-type-argument-keywords type)))
+        (loop for rest on args by #'cddr
+              for keyword = (first rest)
+              unless (and (keywordp keyword)
+                          (member keyword allowed-keywords))
+                do (warn-about-binary-type-argument type keyword context))))))
 
 ;; (id (iso-8859-1-string :length 3)) => (id (iso-8859-1-string :length 3))
 ;; (size u3))                         => (size (u3))
@@ -97,6 +120,7 @@ stack) currently being read/written."
 (defmacro with-slot-parts ((name type args) slot &body body)
   (assert-all #'symbolp (list name type args))
   `(destructuring-bind (,name (,type &rest ,args)) (normalize-slot ,slot)
+     (validate-binary-type-args ,type ,args ,slot)
      ,@body))
 
 ;; -----------------------------------------------------------------------------
@@ -109,6 +133,7 @@ stack) currently being read/written."
   (with-gensyms (object stream)
     `(progn
        (eval-when (:compile-toplevel :load-toplevel :execute)
+         (remember-binary-type-args ',name nil)
          (setf (get ',name 'slots) ',(mapcar #'first slots))
          (setf (get ',name 'superclasses) ',superclasses))
 
@@ -189,7 +214,7 @@ stack) currently being read/written."
              (error ":class-finder option is mandatory!")
     (with-gensyms (type object stream)
       `(define-generic-binary-class ,name ,superclasses ,slots
-         (defmethod read-value ((,type (eql ',name)) ,stream &key)
+         (defmethod read-value ((,type (eql ',name)) ,stream &key &allow-other-keys)
            (let* ,(gen-read-slot-bindings slots stream)
              (let-return (,object (make-instance ,class-finder ,@(gen-slot-keywords slots)))
                (read-object ,object ,stream))))))))
@@ -218,12 +243,16 @@ stack) currently being read/written."
 ;;       (write-byte (char-code (char string i)) out))))
 ;; -----------------------------------------------------------------------------
 (defmacro define-binary-type (name (&rest args) &body spec)
+  (remember-binary-type-args name args)
   (ecase (length spec)
     ;; derived from an existing type
     (1
      (with-gensyms (type stream value)
        (destructuring-bind (derived-from &rest derived-args) (ensure-list (first spec))
+         (validate-binary-type-args derived-from derived-args `(define-binary-type ,name))
          `(progn
+            (eval-when (:compile-toplevel :load-toplevel :execute)
+              (remember-binary-type-args ',name ',args))
             (defmethod read-value ((,type (eql ',name)) ,stream &key ,@args)
               (read-value ',derived-from ,stream ,@derived-args))
             (defmethod write-value ((,type (eql ',name)) ,stream ,value &key ,@args)
@@ -232,6 +261,8 @@ stack) currently being read/written."
     (2
      (with-gensyms (type)
        `(progn
+          (eval-when (:compile-toplevel :load-toplevel :execute)
+            (remember-binary-type-args ',name ',args))
           ,(destructuring-bind ((in) &body body) (rest (assoc :reader spec))
              `(defmethod read-value ((,type (eql ',name)) ,in &key ,@args)
                 ,@body))

@@ -1,5 +1,8 @@
 (in-package :dev.zxul767.mp3-browser)
 
+(defvar *major-version* 1)
+(defvar *minor-version* 0)
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Common Templates
 (define-html-macro :mp3-browser-page ((&key title (header title)) &body body)

@@ -1,5 +1,9 @@
 (in-package #:dev.zxul767.binary)
 
+;; Two-byte encodings need to know if the first logical byte is written out first.
+(defvar *bom-big-endian* #xfeff)
+(defvar *bom-little-endian* #xfffe)
+
 (define-binary-type unsigned-integer (bytes bits-per-byte)
   (:reader (in)
     (loop with value = 0

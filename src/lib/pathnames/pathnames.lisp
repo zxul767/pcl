@@ -113,7 +113,7 @@ directory.
                 :directory-condition (complement is-node-modules-directory))"
   (labels
       ((report-unconditionally (pathname)
-         (funcall callback pathname))
+         (funcall on-file-visit pathname))
        (report (pathname)
          (if (funcall file-condition pathname)
              (report-unconditionally pathname)))

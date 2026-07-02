@@ -244,26 +244,31 @@
       `(write-sequence ,string *html-output*))))
 
 (defmethod op->code ((op (eql :newline)) &rest operands)
+  (declare (ignore operands))
   (if *pretty*
     `(newline *html-pretty-printer*)
     `(write-char #\Newline *html-output*)))
 
 (defmethod op->code ((op (eql :freshline)) &rest operands)
+  (declare (ignore operands))
   (if *pretty*
     `(freshline *html-pretty-printer*)
     (error "Bad op when not pretty-printing: ~a" op)))
 
 (defmethod op->code ((op (eql :indent)) &rest operands)
+  (declare (ignore operands))
   (if *pretty*
     `(indent *html-pretty-printer*)
     (error "Bad op when not pretty-printing: ~a" op)))
 
 (defmethod op->code ((op (eql :unindent)) &rest operands)
+  (declare (ignore operands))
   (if *pretty*
     `(unindent *html-pretty-printer*)
     (error "Bad op when not pretty-printing: ~a" op)))
 
 (defmethod op->code ((op (eql :toggle-indenting)) &rest operands)
+  (declare (ignore operands))
   (if *pretty*
     `(toggle-indenting *html-pretty-printer*)
     (error "Bad op when not pretty-printing: ~a" op)))

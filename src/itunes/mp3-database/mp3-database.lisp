@@ -91,16 +91,16 @@
      (:id3-size number))))
 
 (defun file->row (file)
-  (let-when ((id3 (read-id3 file)))
+  (let-when ((id3 (id3:read-id3 file)))
     (list
      :file (namestring (truename file))
-     :genre (translated-genre id3)
-     :artist (artist id3)
-     :album (album id3)
-     :song (song id3)
-     :track (try-parse-track (track id3))
-     :year (try-parse-year (year id3))
-     :id3-size (size id3))))
+     :genre (id3:translated-genre id3)
+     :artist (id3:artist id3)
+     :album (id3:album id3)
+     :song (id3:song id3)
+     :track (try-parse-track (id3:track id3))
+     :year (try-parse-year (id3:year id3))
+     :id3-size (id3:size id3))))
 
 (defun load-database (directory database)
   (delete-all-rows database)
@@ -108,7 +108,7 @@
   ;; so we need to recreate the schema to get rid of the old values
   (setf (schema database) (get-mp3-schema))
   (let ((count 0))
-    (walk-directory
+    (os:walk-directory
      directory
      :on-file-visit
      #'(lambda (file)
@@ -116,7 +116,7 @@
          (when (insert-row (file->row file) database)
            (incf count)))
      :recursively t
-     :file-condition (and-pipe mp3-p id3-p))
+     :file-condition (ft:and-pipe id3:mp3-p id3:id3-p))
     (format t "~&Loaded ~d files into database." count)))
 
 (defun select (&key (columns t) from where distinct order-by)

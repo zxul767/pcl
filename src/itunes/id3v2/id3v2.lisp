@@ -389,10 +389,10 @@
 ;; ID3 V2.3
 ;; -----------------------------------------------------------------------------
 (define-binary-class id3v2.3-tag (id3-tag)
-  (extended-header-size (optional :type 'u4 :if (extended-p flags)))
-  (extra-flags (optional :type 'u2 :if (extended-p flags)))
-  (padding-size (optional :type 'u4 :if (extended-p flags)))
-  (crc (optional :type 'u4 :if (crc-p flags extra-flags)))
+  (extended-header-size (optional :type 'u4 :condition (extended-p flags)))
+  (extra-flags (optional :type 'u2 :condition (extended-p flags)))
+  (padding-size (optional :type 'u4 :condition (extended-p flags)))
+  (crc (optional :type 'u4 :condition (crc-p flags extra-flags)))
   (frames (id3-frames :tag-size size :frame-type 'id3v2.3-frame)))
 
 (define-tagged-binary-class id3v2.3-frame ()
@@ -400,9 +400,9 @@
   (id (frame-id :length 4))
   (size u4)
   (flags u2)
-  (decompressed-size (optional :type 'u4 :if (frame-compressed-p flags)))
-  (encryption-scheme (optional :type 'u1 :if (frame-encrypted-p flags)))
-  (grouping-identity (optional :type 'u1 :if (frame-grouped-p flags))))
+  (decompressed-size (optional :type 'u4 :condition (frame-compressed-p flags)))
+  (encryption-scheme (optional :type 'u1 :condition (frame-encrypted-p flags)))
+  (grouping-identity (optional :type 'u1 :condition (frame-grouped-p flags))))
 
 (define-binary-class generic-id3-frame-v2.3 (id3v2.3-frame generic-id3-frame))
 

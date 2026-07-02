@@ -10,7 +10,9 @@
 (defun add-directory-to-corpus (directory type corpus &key recursively)
   (path:walk-directory
    directory
-   #'(lambda (filepath) (add-file-to-corpus filepath type corpus))
+   :on-file-visit
+   #'(lambda (filepath)
+       (add-file-to-corpus filepath type corpus))
    :recursively recursively))
 
 (defun add-file-to-corpus (filepath type corpus)

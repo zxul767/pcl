@@ -6,7 +6,7 @@
 ;;   (<fn-name-1> ...)
 ;;   (<fn-name-2> ...))
 (indent:define-indentation
-    with-labels ((&whole 4 &rest 4) &rest (&whole 2 4 &rest 2)))
+    with-labels ((&whole 4) &rest (&whole 2 &rest 2)))
 
 (defun zip (&rest lists)
   (apply #'mapcar #'list lists))

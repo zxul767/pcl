@@ -1,6 +1,6 @@
 (in-package #:cl-user)
 
-(defpackage :dev.zxul767.pathnames
+(defpackage #:dev.zxul767.pathnames
   (:use #:cl)
   (:export #:as-directory-pathname
            #:as-file-pathname

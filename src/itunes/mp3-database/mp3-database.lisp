@@ -110,6 +110,7 @@
   (let ((count 0))
     (walk-directory
      directory
+     :on-file-visit
      #'(lambda (file)
          (princ #\.)
          (when (insert-row (file->row file) database)

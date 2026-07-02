@@ -182,9 +182,10 @@
 (defun show-tag-headers (directory)
   "Show the ID3 tag header for all mp3 files under `directory'"
   (with-labels
-      (path:walk-directory directory #'show-tag-header
-          :recursively t
-          :file-condition (and-pipe mp3-p id3-p))
+      (os:walk-directory directory
+                         :on-file-visit #'show-tag-header
+                         :recursively t
+                         :file-condition (and-pipe mp3-p id3-p))
     (show-tag-header (file)
       (let-when ((id3-tag (read-id3 file)))
         (with-slots (identifier major-version revision flags size) id3-tag
@@ -192,17 +193,19 @@
                   identifier major-version revision flags size (enough-namestring file)))))))
 
 (defun show-mp3s (directory)
-  (path:walk-directory directory #'show-mp3-metadata
-                       :recursively t
-                       :file-condition #'mp3-p))
+  (os:walk-directory directory
+                     :on-file-visit #'show-mp3-metadata
+                     :recursively t
+                     :file-condition #'mp3-p))
 
 (defun count-versions (directory)
   "Count the total number of mp3 files grouped by the version of their ID3 tags"
   (let ((version-counts (mapcar #'(lambda (version) (cons version 0)) '(2 3 4))))
     (with-labels
-        (path:walk-directory directory #'count-version
-            :recursively t
-            :file-condition #'mp3-p)
+        (os:walk-directory directory
+                           :on-file-visit #'count-version
+                           :recursively t
+                           :file-condition #'mp3-p)
       (count-version (file)
         (let-when* ((tag (read-id3 file))
                     (major-version (assoc (major-version tag) version-counts)))
@@ -212,7 +215,7 @@
 
 (defun mp3-p (filepath)
   "Does `filepath' point to what seems to be an mp3 file?"
-  (and (path:file-pathname-p filepath)
+  (and (os:file-pathname-p filepath)
        (string-equal "mp3" (pathname-type filepath))))
 
 (defun id3-p (filepath)
@@ -269,9 +272,10 @@
 (defun frame-types-in-directory (directory &key sort-by)
   (let-return (ids)
     (with-labels
-        (path:walk-directory directory #'collect
-            :recursively t
-            :file-condition #'mp3-p)
+        (os:walk-directory directory
+                           :on-file-visit #'collect
+                           :recursively t
+                           :file-condition #'mp3-p)
       (collect (filepath)
         (setf ids (nunion ids (frame-types filepath) :key #'frame-id :test #'string=))))
     (case sort-by

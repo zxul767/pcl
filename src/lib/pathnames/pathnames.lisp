@@ -1,4 +1,4 @@
-(in-package :dev.zxul767.pathnames)
+(in-package #:dev.zxul767.pathnames)
 
 ;;
 ;; Public API
@@ -80,12 +80,14 @@
   "Return non-nil if `pathname' represents a file pathname"
   (unless (directory-pathname-p pathname) pathname))
 
-(defun walk-directory (dirname callback
-                       &key
-                         (recursively nil)
-                         (report-directories nil)
-                         (file-condition (constantly t))
-                         (directory-condition (constantly t)))
+(defun walk-directory
+    (dirname
+     &key
+       (on-file-visit (error "The :on-file-visit argument is required!"))
+       (recursively nil)
+       (report-directories nil)
+       (file-condition (constantly t))
+       (directory-condition (constantly t)))
   "Traverse directory `dirname', invoking `callback' on each file.
 On each call to `callback' a canonical pathname is passed back.
 
@@ -103,11 +105,12 @@ Example: traverse the `~/src' directory recursively, printing each Python file
 and directory underneath it, excluding everything under the `node_modules'
 directory.
 
-(walk-directory \"~/src\" #'print
+(walk-directory \"~/src\"
+                :on-file-visit #'print
                 :recursively t
                 :report-directories t
                 :file-condition #'is-python-file
-                :directory-condition (fn-not is-node-modules-directory))"
+                :directory-condition (complement is-node-modules-directory))"
   (labels
       ((report-unconditionally (pathname)
          (funcall callback pathname))

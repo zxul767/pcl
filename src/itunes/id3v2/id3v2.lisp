@@ -1,9 +1,5 @@
 (in-package #:dev.zxul767.id3v2)
 
-;; two-byte encodings require knowing whether the first logical byte is written out first
-(defvar *bom-big-endian* #xfeff)
-(defvar *bom-little-endian* #xfffe)
-
 (defparameter *silence-errors* nil)
 
 (defparameter *id3-v1-genres*
@@ -309,7 +305,8 @@
 
 (define-binary-class text-info-frame ()
   (encoding u1)
-  (information (id3-encoded-string :encoding encoding :length (bytes-left 1))))
+  (information (id3-encoded-string :encoding encoding
+                                   :length (bytes-left-in-current-object 1))))
 
 (define-binary-class comment-frame ()
   (encoding u1)
@@ -317,12 +314,12 @@
   (description (id3-encoded-string :encoding encoding :terminator +null+))
   (text (id3-encoded-string
          :encoding encoding
-         :length (bytes-left
+         :length (bytes-left-in-current-object
                   (+ 1 ; encoding
                      3 ; language
                      (encoded-string-length description encoding t))))))
 
-(defun bytes-left (bytes-read)
+(defun bytes-left-in-current-object (bytes-read)
   (- (size (first-object-in-processing-stack))
      bytes-read))
 

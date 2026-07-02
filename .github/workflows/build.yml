@@ -33,6 +33,9 @@ jobs:
         shell: bash
         run: curl -L https://raw.githubusercontent.com/roswell/roswell/master/scripts/install-for-ci.sh | sh
       - name: Run project checks
+        env:
+          LISP: ${{ matrix.lisp }}
+          CHECK_VERBOSE: "2"
         shell: bash
         run: src/check.sh
       - name: Check warning log

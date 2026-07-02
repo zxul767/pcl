@@ -45,31 +45,31 @@
 (define-binary-type ucs-2-char-little-endian ()
   (ucs-2-char :swap t))
 
-(define-binary-type generic-string (length character-type)
+(define-binary-type generic-string (length char-type)
   (:reader (in)
     (let-return (string (make-string length))
       (dotimes (i length)
-        (setf (char string i) (read-value character-type in)))))
+        (setf (char string i) (read-value char-type in)))))
   (:writer (out string)
     (dotimes (i length)
-      (write-value character-type out (char string i)))))
+      (write-value char-type out (char string i)))))
 
-(define-binary-type generic-terminated-string (terminator character-type)
+(define-binary-type generic-terminated-string (terminator char-type)
   (:reader (in)
-    (with-output-to-string (s)
-      (loop for char = (read-value character-type in)
+    (with-output-to-string (out)
+      (loop for char = (read-value char-type in)
             until (char= char terminator)
-            do (write-char char s))))
+            do (write-char char out))))
   (:writer (out string)
     (loop for char across string
-          do (write-value character-type out char)
-          finally (write-value character-type out terminator))))
+          do (write-value char-type out char)
+          finally (write-value char-type out terminator))))
 
 (define-binary-type iso-8859-1-string (length)
-  (generic-string :length length :character-type 'iso-8859-1-char))
+  (generic-string :length length :char-type 'iso-8859-1-char))
 
 (define-binary-type iso-8859-1-terminated-string (terminator)
-  (generic-terminated-string :terminator terminator :character-type 'iso-8859-1-char))
+  (generic-terminated-string :terminator terminator :char-type 'iso-8859-1-char))
 
 (define-binary-type ucs-2-string (length)
   (:reader (in)
@@ -77,7 +77,7 @@
           (characters (1- (/ length 2))))
       (read-value 'generic-string in
                   :length characters
-                  :character-type (ucs-2-char-type byte-order-mark))))
+                  :char-type (ucs-2-char-type byte-order-mark))))
   (:writer (out string)
     (declare (ignorable length))
     (assert (= length (length string)))
@@ -85,19 +85,19 @@
     (write-value 'u2 out *bom-big-endian*)
     (write-value 'generic-string out string
                  :length (length string)
-                 :character-type (ucs-2-char-type *bom-big-endian*))))
+                 :char-type (ucs-2-char-type *bom-big-endian*))))
 
 (define-binary-type ucs-2-terminated-string (terminator)
   (:reader (in)
     (let ((byte-order-mark (read-value 'u2 in)))
       (read-value 'generic-terminated-string in
                   :terminator terminator
-                  :character-type (ucs-2-char-type byte-order-mark))))
+                  :char-type (ucs-2-char-type byte-order-mark))))
   (:writer (out string)
     (write-value 'u2 out *bom-big-endian*)
     (write-value 'generic-terminated-string out string
                  :terminator terminator
-                 :character-type (ucs-2-char-type *bom-big-endian*))))
+                 :char-type (ucs-2-char-type *bom-big-endian*))))
 
 (define-binary-type raw-bytes (size max-size)
   (:reader (in)

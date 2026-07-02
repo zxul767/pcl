@@ -88,17 +88,17 @@
        (report-directories nil)
        (file-condition (constantly t))
        (directory-condition (constantly t)))
-  "Traverse directory `dirname', invoking `callback' on each file.
-On each call to `callback' a canonical pathname is passed back.
+  "Traverse directory `dirname', invoking `on-file-visit' on each file with a
+canonical pathname.
 
 By default, all top-level files are considered but `file-condition' can be used
-to limit which files are actually passed to `callback'.
+to limit which files are actually passed to `on-file-visit'.
 
 By default, only top-level files and directories are reported but `recursively'
 can change that; when this option is used, `directory-condition' can be used to
 limit which directories are (also recursively) traversed.
 
-By default, only files are passed back to `callback' but `report-directories'
+By default, only files are passed back to `on-file-visit' but `report-directories'
 can change that.
 
 Example: traverse the `~/src' directory recursively, printing each Python file

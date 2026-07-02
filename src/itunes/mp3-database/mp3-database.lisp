@@ -420,20 +420,20 @@
          (longest-length column-name table :max-rows max-rows)))))))
 
 (defun create-row-layout (column-widths)
-  (loop for (_ value) on column-widths by #'cddr
+  (loop for value in (plist-values column-widths)
         collecting (format nil "~~~aa" value) into results
         finally (return (format nil "~a~~%" (str:join "|" results)))))
 
 (defun total-width (widths)
-  (loop for (column width) on widths by #'cddr
+  (loop for width in (plist-values widths)
         summing width into total-width
         finally (return (+ total-width (/ (length widths) 2)))))
 
 (defun plist-values (plist)
-  (loop for (_ value) on plist by #'cddr collect value))
+  (loop for rest on plist by #'cddr collect (second rest)))
 
 (defun plist-keys (plist)
-  (loop for (key _) on plist by #'cddr collect key))
+  (loop for rest on plist by #'cddr collect (first rest)))
 
 (defun hash-keys (hash-table)
   (loop for key being the hash-keys of hash-table collect key))
@@ -448,4 +448,3 @@
 
 (defun longest-string-length (strings)
   (reduce #'max strings :key #'length))
-

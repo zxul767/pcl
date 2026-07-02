@@ -219,8 +219,17 @@ It DOES NOT compile/load any such dependencies the way `(ql:quickload ...)` woul
                 (string= "REDEFINITION-" name
                          :end2 (length "REDEFINITION-")))))))
 
+(defun ccl-duplicate-definition-warning-p (condition)
+  (let ((type (type-of condition)))
+    (and (symbolp type)
+         (symbol-package type)
+         (string= "CCL" (package-name (symbol-package type)))
+         (string= "COMPILER-WARNING" (symbol-name type))
+         (search "Duplicate definitions" (princ-to-string condition)))))
+
 (defun ignorable-warning-p (condition)
-  (redefinition-warning-p condition))
+  (or (redefinition-warning-p condition)
+      (ccl-duplicate-definition-warning-p condition)))
 
 (defun pathname-prefix-p (prefix pathname)
   (let ((prefix (namestring (truename prefix)))

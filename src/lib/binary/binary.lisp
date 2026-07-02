@@ -143,11 +143,12 @@ stack) currently being read/written."
        ,@read-method
 
        (defmethod write-object progn ((,object ,name) ,stream)
+         (declare (ignorable ,stream))
          (with-slots ,(all-combined-slots slots superclasses) ,object
            ,@(gen-write-slot-expressions slots stream))))))
 
 (defun gen-defclass-slots (slots)
-  (loop for (name _) in slots
+  (loop for (name) in slots
         collect `(,name :initarg ,(as-keyword name) :accessor ,name)))
 
 (defun gen-write-slot-expressions (slots stream)
@@ -187,6 +188,7 @@ stack) currently being read/written."
   (with-gensyms (object stream)
     `(define-generic-binary-class ,name ,superclasses ,slots
        (defmethod read-object progn ((,object ,name) ,stream)
+         (declare (ignorable ,stream))
          (with-slots ,(all-combined-slots slots superclasses) ,object
            ,@(gen-read-slot-expressions slots stream))))))
 
@@ -226,7 +228,7 @@ stack) currently being read/written."
     (mapcar #'slot->binding slots)))
 
 (defun gen-slot-keywords (slots)
-  (loop for (name _) in slots append `(,(as-keyword name) ,name)))
+  (loop for (name) in slots append `(,(as-keyword name) ,name)))
 
 ;; -----------------------------------------------------------------------------
 ;; Usage:

@@ -15,21 +15,17 @@
   "Returns the path of the source directory of the current file."
   (uiop:pathname-directory-pathname *load-truename*))
 
-(defun get-warnings-filepath ()
-  "Returns the path of the warnings log file.
+(defun get-log-filepath (filename)
+  "Returns the path of a log file in the current working directory."
+  (merge-pathnames filename (uiop:getcwd)))
 
-By convention, it is placed on the parent directory of the source directory."
-  (merge-pathnames
-   "warnings.log"
-   (uiop:pathname-parent-directory-pathname (get-source-dirpath))))
+(defun get-warnings-filepath ()
+  "Returns the path of the warnings log file."
+  (get-log-filepath "warnings.log"))
 
 (defun get-test-errors-filepath ()
-  "Returns the path of the test errors log file.
-
-By convention, it is placed on the parent directory of the source directory."
-  (merge-pathnames
-   "test-errors.log"
-   (uiop:pathname-parent-directory-pathname (get-source-dirpath))))
+  "Returns the path of the test errors log file."
+  (get-log-filepath "test-output.log"))
 
 (defun get-local-system-names (dirpath)
   ;; ASDF requires each primary system to have the same name as its .asd file.

@@ -24,10 +24,10 @@
 ;; -----------------------------------------------------------------------------
 ;; Interfaces
 ;; -----------------------------------------------------------------------------
-(defgeneric read-value (type stream &key &allow-other-keys)
+(defgeneric read-value (type stream &key)
   (:documentation "Read a value of the given type from the stream."))
 
-(defgeneric write-value (type stream value &key &allow-other-keys)
+(defgeneric write-value (type stream value &key)
   (:documentation "Write a value as the given type to the stream."))
 
 (defgeneric read-object (object stream)
@@ -72,12 +72,12 @@ stack) currently being read/written."
 ;; -----------------------------------------------------------------------------
 ;; Default Implementations
 ;; -----------------------------------------------------------------------------
-(defmethod read-value ((type symbol) stream &key &allow-other-keys)
+(defmethod read-value ((type symbol) stream &key)
   (let ((object (make-instance type)))
     (read-object object stream)
     object))
 
-(defmethod write-value ((type symbol) stream value &key &allow-other-keys)
+(defmethod write-value ((type symbol) stream value &key)
   (assert (typep value type))
   (write-object value stream))
 
@@ -111,6 +111,31 @@ stack) currently being read/written."
               unless (and (keywordp keyword)
                           (member keyword allowed-keywords))
                 do (warn-about-binary-type-argument type keyword context))))))
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun quoted-symbol-form (form)
+    (when (and (consp form)
+               (eq (first form) 'quote)
+               (symbolp (second form))
+               (null (cddr form)))
+      (second form)))
+
+  (defun maybe-validate-constant-binary-type-call (type args context)
+    (let ((type (quoted-symbol-form type)))
+      (when type
+        (validate-binary-type-args type args context)))))
+
+(define-compiler-macro read-value (&whole whole type stream &rest args)
+  (maybe-validate-constant-binary-type-call type args whole)
+  (if (quoted-symbol-form type)
+      `(funcall (symbol-function 'read-value) ,type ,stream ,@args)
+      whole))
+
+(define-compiler-macro write-value (&whole whole type stream value &rest args)
+  (maybe-validate-constant-binary-type-call type args whole)
+  (if (quoted-symbol-form type)
+      `(funcall (symbol-function 'write-value) ,type ,stream ,value ,@args)
+      whole))
 
 ;; (id (iso-8859-1-string :length 3)) => (id (iso-8859-1-string :length 3))
 ;; (size u3))                         => (size (u3))
@@ -216,7 +241,7 @@ stack) currently being read/written."
              (error ":class-finder option is mandatory!")
     (with-gensyms (type object stream)
       `(define-generic-binary-class ,name ,superclasses ,slots
-         (defmethod read-value ((,type (eql ',name)) ,stream &key &allow-other-keys)
+         (defmethod read-value ((,type (eql ',name)) ,stream &key)
            (let* ,(gen-read-slot-bindings slots stream)
              (let-return (,object (make-instance ,class-finder ,@(gen-slot-keywords slots)))
                (read-object ,object ,stream))))))))

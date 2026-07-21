@@ -112,31 +112,6 @@ stack) currently being read/written."
                           (member keyword allowed-keywords))
                 do (warn-about-binary-type-argument type keyword context))))))
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun quoted-symbol-form (form)
-    (when (and (consp form)
-               (eq (first form) 'quote)
-               (symbolp (second form))
-               (null (cddr form)))
-      (second form)))
-
-  (defun maybe-validate-constant-binary-type-call (type args context)
-    (let ((type (quoted-symbol-form type)))
-      (when type
-        (validate-binary-type-args type args context)))))
-
-(define-compiler-macro read-value (&whole whole type stream &rest args)
-  (maybe-validate-constant-binary-type-call type args whole)
-  (if (quoted-symbol-form type)
-      `(funcall (symbol-function 'read-value) ,type ,stream ,@args)
-      whole))
-
-(define-compiler-macro write-value (&whole whole type stream value &rest args)
-  (maybe-validate-constant-binary-type-call type args whole)
-  (if (quoted-symbol-form type)
-      `(funcall (symbol-function 'write-value) ,type ,stream ,value ,@args)
-      whole))
-
 ;; (id (iso-8859-1-string :length 3)) => (id (iso-8859-1-string :length 3))
 ;; (size u3))                         => (size (u3))
 (defun normalize-slot (slot)

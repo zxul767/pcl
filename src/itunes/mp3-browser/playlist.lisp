@@ -122,7 +122,7 @@
   (setf (current-song-index playlist) 0)
   (update-current-song playlist))
 
-(defun order-playlist (playlist)
+(defun apply-playlist-ordering (playlist)
   (apply #'sort-rows (songs playlist)
          (case (ordering playlist)
            (:genre '(:genre :album :track))
@@ -133,7 +133,7 @@
 (defun sort-playlist (playlist ordering)
   (setf (ordering playlist) ordering)
   (setf (shuffle playlist) :none)
-  (order-playlist playlist)
+  (apply-playlist-ordering playlist)
   (setf (current-song-index playlist)
         (position-of-current-song playlist)))
 
@@ -161,7 +161,7 @@
 (defun shuffle-playlist (playlist shuffle)
   (setf (shuffle playlist) shuffle)
   (case shuffle
-    (:none (order-playlist playlist))
+    (:none (apply-playlist-ordering playlist))
     (:song (shuffle-by-song playlist))
     (:album (shuffle-by-album playlist)))
   (setf (current-song-index playlist) (position-of-current-song playlist)))

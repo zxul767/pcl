@@ -112,7 +112,7 @@ It DOES NOT compile/load any such dependencies the way `(ql:quickload ...)` woul
 (defun full-output-p (verbosity)
   (>= verbosity 3))
 
-(defun call-with-output-to-stream (function stream)
+(defun call-with-redirected-output (function stream)
   (with-open-stream (input (make-string-input-stream ""))
     (with-open-stream (io (make-two-way-stream input stream))
       (let ((*standard-output* stream)
@@ -125,14 +125,14 @@ It DOES NOT compile/load any such dependencies the way `(ql:quickload ...)` woul
 
 (defun call-with-output-suppressed (function)
   (with-open-stream (stream (make-broadcast-stream))
-    (call-with-output-to-stream function stream)))
+    (call-with-redirected-output function stream)))
 
 (defmacro with-output-suppressed-unless ((condition) &body body)
   `(if ,condition
        (progn ,@body)
        (call-with-output-suppressed (lambda () ,@body))))
 
-(defun run-system-test (system-name index verbosity test-errors-stream)
+(defun run-system-test (system-name index &key verbosity output-stream)
   (handler-case
       (progn
         (when (detailed-output-p verbosity)
@@ -140,21 +140,23 @@ It DOES NOT compile/load any such dependencies the way `(ql:quickload ...)` woul
         (if (test-output-p verbosity)
             (asdf:test-system system-name)
             (progn
-              (format test-errors-stream
+              (format output-stream
                       "~&~a. Testing ASDF system ~a...~%"
                       index system-name)
-              (call-with-output-to-stream
+              (call-with-redirected-output
                (lambda () (asdf:test-system system-name))
-               test-errors-stream)))
+               output-stream)))
         nil)
     (error (condition)
       (format *error-output* "~&ASDF system ~a failed: ~a~%"
               system-name condition)
       (cons system-name condition))))
 
-(defun run-system-tests (system-names verbosity test-errors-stream)
-  (loop for i = 0 then (1+ i) for name in system-names
-        for failure = (run-system-test name i verbosity test-errors-stream)
+(defun run-system-tests (system-names verbosity test-output-stream)
+  (loop for index = 0 then (1+ index) for name in system-names
+        for failure = (run-system-test name index
+                                       :verbosity verbosity
+                                       :output-stream test-output-stream)
         when failure collect failure))
 
 (defun compile-systems (system-names verbosity)
@@ -205,21 +207,23 @@ It DOES NOT compile/load any such dependencies the way `(ql:quickload ...)` woul
           "~&Test output/errors written to ~a. Rerun with CHECK_VERBOSE=2 to print test output.~%"
           (namestring test-errors-file)))
 
+(defun condition-type-origin (condition-type)
+  (and (symbolp condition-type)
+       (symbol-package condition-type)
+       (package-name (symbol-package condition-type))))
+
 (defun sbcl-redefinition-warning-p (condition)
   (let ((type (type-of condition)))
-    (and (symbolp type)
-         (symbol-package type)
-         (string= "SB-KERNEL" (package-name (symbol-package type)))
-         (let ((name (symbol-name type)))
-           (and (<= (length "REDEFINITION-") (length name))
-                (string= "REDEFINITION-" name
-                         :end2 (length "REDEFINITION-")))))))
+    (and (string= "SB-KERNEL" (condition-type-origin type))
+         (let ((name (symbol-name type))
+               (redefinition-prefix "REDEFINITION-"))
+           (and (<= (length redefinition-prefix) (length name))
+                (string= redefinition-prefix name
+                         :end2 (length redefinition-prefix)))))))
 
 (defun ccl-redefinition-warning-p (condition)
   (let ((type (type-of condition)))
-    (and (symbolp type)
-         (symbol-package type)
-         (string= "CCL" (package-name (symbol-package type)))
+    (and (string= "CCL" (condition-type-origin type))
          (string= "COMPILER-WARNING" (symbol-name type))
          (search "Duplicate definitions" (princ-to-string condition)))))
 
@@ -237,7 +241,7 @@ It DOES NOT compile/load any such dependencies the way `(ql:quickload ...)` woul
   (and *compile-file-truename*
        (pathname-prefix-p (get-source-dirpath) *compile-file-truename*)))
 
-(defun handle-warning (condition warnings-stream verbosity warning-count style-warning-count)
+(defun handle-warning (condition &key warnings-stream verbosity warning-count style-warning-count)
   (when (and (typep condition 'style-warning)
              (compiling-project-file-p)
              (not (ignorable-warning-p condition)))
@@ -262,10 +266,10 @@ It DOES NOT compile/load any such dependencies the way `(ql:quickload ...)` woul
                  ((warning
                     (lambda (condition)
                       (handle-warning condition
-                                      warnings-stream
-                                      verbosity
-                                      warning-count
-                                      style-warning-count))))
+                                      :warnings-stream warnings-stream
+                                      :verbosity verbosity
+                                      :warning-count warning-count
+                                      :style-warning-count style-warning-count))))
                (let ((*compile-verbose* (full-output-p verbosity))
                      (*compile-print* (full-output-p verbosity))
                      (*load-verbose* (full-output-p verbosity)))

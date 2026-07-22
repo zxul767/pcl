@@ -39,6 +39,17 @@
     :test #'string=)
    #'string<))
 
+(defun get-local-test-system-names (system-names)
+  "Returns the local secondary test systems corresponding to `system-names`."
+  (sort
+   (remove-duplicates
+    (loop for system-name in system-names
+          for test-system-name = (format nil "~a/tests" system-name)
+          when (asdf:find-system test-system-name nil)
+            collect test-system-name)
+    :test #'string=)
+   #'string<))
+
 (defun resolve-dependency-names (dependency)
   "Returns the active system names from an ASDF dependency specification.
 
@@ -290,23 +301,27 @@ It DOES NOT compile/load any such dependencies the way `(ql:quickload ...)` woul
   "Runs all tests under `source-dirpath`.
 Returns 0 if there are no failures, and 1 if there are any failures."
   (handler-case
-      (let ((system-names (get-local-system-names source-dirpath)))
+      (let* ((system-names (get-local-system-names source-dirpath))
+             (test-system-names (get-local-test-system-names system-names))
+             (compiled-system-names (append system-names test-system-names)))
         ;; Install third-party dependencies before opening an ASDF session
         ;; so Quicklisp downloads do not invalidate its action plan.
         (format t "~&Ensuring dependencies...~%")
         (ensure-all-dependencies system-names)
 
         ;; Force compilation of every discovered primary system before
-        ;; loading/testing. This makes style warnings reproducible even when
-        ;; ASDF's cache is warm.
+        ;; loading/testing. Include test systems too so warm-cache runs do not
+        ;; skip warnings in test code.
         (format t "~&Compiling systems...~%")
-        (compile-systems system-names verbosity)
+        (compile-systems compiled-system-names verbosity)
 
         (asdf/session:with-asdf-session (:override t)
-          ;; Load every discovered primary system. Using the same discovery as
-          ;; the test phase keeps new .asd files covered by CI.
+          ;; Load every discovered primary system and its test systems. Using
+          ;; the same discovery as the test phase keeps new .asd files covered
+          ;; by CI and ensures test load-time warnings are not skipped on warm
+          ;; caches.
           (format t "~&Loading systems...~%")
-          (load-systems system-names verbosity)
+          (load-systems compiled-system-names verbosity)
           ;; Run all subsystems' tests.
           (format t "~&Testing systems...~%")
           (let* ((test-output-file (get-test-output-filepath))

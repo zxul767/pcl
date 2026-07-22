@@ -75,8 +75,7 @@
 
 ;; `(current-song-index playlist)` is a property (slot accessor) which
 ;; may get stale after editing the playlist, so this function recovers
-;; recovers the index of the current song (by matching against the a
-;; song's filepath)
+;; the index of the current song (by matching the song's filepath)
 (defun find-current-song-index (playlist)
   (let* ((songs (songs playlist))
          (matcher (matching songs :file (file (current-song playlist))))

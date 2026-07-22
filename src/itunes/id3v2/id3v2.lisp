@@ -306,18 +306,20 @@
 (define-binary-class text-info-frame ()
   (encoding u1)
   (information (id3-encoded-string :encoding encoding
-                                   :length (bytes-left-in-current-object 1))))
+                                   :length (bytes-left-in-current-object 1)
+                                   :terminator nil)))
 
 (define-binary-class comment-frame ()
   (encoding u1)
   (language (iso-8859-1-string :length 3))
-  (description (id3-encoded-string :encoding encoding :terminator +null+))
+  (description (id3-encoded-string :encoding encoding :length nil :terminator +null+))
   (text (id3-encoded-string
          :encoding encoding
          :length (bytes-left-in-current-object
-                  (+ 1 ; encoding
-                     3 ; language
-                     (encoded-string-length description encoding t))))))
+                  (+ 1                  ; encoding
+                     3                  ; language
+                     (encoded-string-length description encoding t)))
+         :terminator nil)))
 
 (defun bytes-left-in-current-object (bytes-read)
   (- (size (first-object-in-processing-stack))

@@ -24,10 +24,10 @@
 ;; -----------------------------------------------------------------------------
 ;; Interfaces
 ;; -----------------------------------------------------------------------------
-(defgeneric read-value (type stream &key)
+(defgeneric read-value (type stream &key &allow-other-keys)
   (:documentation "Read a value of the given type from the stream."))
 
-(defgeneric write-value (type stream value &key)
+(defgeneric write-value (type stream value &key &allow-other-keys)
   (:documentation "Write a value as the given type to the stream."))
 
 (defgeneric read-object (object stream)
@@ -103,14 +103,24 @@ stack) currently being read/written."
           :format-control "~s is not a known argument keyword for binary type ~s in ~s."
           :format-arguments (list keyword type context)))
 
+  (defun warn-about-missing-binary-type-argument (type keyword context)
+    (warn 'binary-type-style-warning
+          :format-control "~s is a required argument keyword for binary type ~s in ~s, but it was omitted."
+          :format-arguments (list keyword type context)))
+
   (defun validate-binary-type-args (type args context)
     (when (get type 'binary-type-args-known-p)
-      (let ((allowed-keywords (binary-type-argument-keywords type)))
-        (loop for rest on args by #'cddr
-              for keyword = (first rest)
+      (let ((allowed-keywords (binary-type-argument-keywords type))
+            (supplied-keywords
+              (loop for rest on args by #'cddr collect (first rest))))
+        (loop for keyword in supplied-keywords
               unless (and (keywordp keyword)
                           (member keyword allowed-keywords))
-                do (warn-about-binary-type-argument type keyword context))))))
+                do (warn-about-binary-type-argument type keyword context))
+        (loop for keyword in allowed-keywords
+              unless (member keyword supplied-keywords)
+                do (warn-about-missing-binary-type-argument
+                    type keyword context))))))
 
 ;; (id (iso-8859-1-string :length 3)) => (id (iso-8859-1-string :length 3))
 ;; (size u3))                         => (size (u3))

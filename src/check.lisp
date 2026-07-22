@@ -192,9 +192,9 @@ It DOES NOT compile/load any such dependencies the way `(ql:quickload ...)` woul
 
 (defun report-suppressed-warnings (count warnings-file)
   (when (plusp count)
-    (format t "~&Suppressed ~d warning~:p; details written to ~a. ~
-               Rerun with CHECK_VERBOSE=3 to print them.~%"
-            count (namestring warnings-file))))
+    (format t "~&Suppressed ~d warning~:p; details written to ~a."
+            count (namestring warnings-file))
+    (format t "~&Rerun with CHECK_VERBOSE=3 to print all warnings.~%")))
 
 (defun report-style-warnings (style-warnings-count)
   (when (plusp style-warnings-count)
@@ -202,10 +202,11 @@ It DOES NOT compile/load any such dependencies the way `(ql:quickload ...)` woul
             "~&PROJECT CHECKS FAILED: produced ~d style warning~:p.~%"
             style-warnings-count)))
 
-(defun report-test-errors-log (test-errors-file)
+(defun report-test-output-log (test-output-filepath)
   (format *error-output*
-          "~&Test output/errors written to ~a. Rerun with CHECK_VERBOSE=2 to print test output.~%"
-          (namestring test-errors-file)))
+          "~&Test output/errors written to ~a."
+          (namestring test-output-filepath))
+  (format *error-output* "~&Rerun with CHECK_VERBOSE=2 to print test output.~%"))
 
 (defun condition-type-origin (condition-type)
   (and (symbolp condition-type)
@@ -319,7 +320,7 @@ Returns 0 if there are no failures, and 1 if there are any failures."
                          (run-system-tests system-names verbosity stream)))))
             (when failures
               (unless (test-output-p verbosity)
-                (report-test-errors-log test-output-file))
+                (report-test-output-log test-output-file))
               (error "~d ASDF system~:p failed project checks."
                      (length failures))))
           (format t "~&ALL PROJECT CHECKS PASSED~%"))

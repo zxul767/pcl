@@ -23,7 +23,7 @@
   "Returns the path of the warnings log file."
   (get-log-filepath "warnings.log"))
 
-(defun get-test-errors-filepath ()
+(defun get-test-output-filepath ()
   "Returns the path of the test errors log file."
   (get-log-filepath "test-output.log"))
 
@@ -304,18 +304,18 @@ Returns 0 if there are no failures, and 1 if there are any failures."
           (load-systems system-names verbosity)
           ;; Run all subsystems' tests.
           (format t "~&Testing systems...~%")
-          (let* ((test-errors-file (get-test-errors-filepath))
+          (let* ((test-output-file (get-test-output-filepath))
                  (failures
                    (if (test-output-p verbosity)
                        (run-system-tests system-names verbosity nil)
-                       (with-open-file (stream test-errors-file
+                       (with-open-file (stream test-output-file
                                                :direction :output
                                                :if-exists :supersede
                                                :if-does-not-exist :create)
                          (run-system-tests system-names verbosity stream)))))
             (when failures
               (unless (test-output-p verbosity)
-                (report-test-errors-log test-errors-file))
+                (report-test-errors-log test-output-file))
               (error "~d ASDF system~:p failed project checks."
                      (length failures))))
           (format t "~&ALL PROJECT CHECKS PASSED~%"))

@@ -82,9 +82,9 @@
          (position 0))
     (do-rows (song songs)
       (when (funcall matcher song)
+        ;; we cannot use `(return position)` because `do-rows' defines an implicit
+        ;; `nil' block, so it would break out of the loop (not out of the function)
         (return-from find-current-song-index position))
-      ;; we cannot use `(return position)` because `do-rows' defines an implicit
-      ;; `nil' block, so it would break out of the loop (not out of the function)
       (incf position))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

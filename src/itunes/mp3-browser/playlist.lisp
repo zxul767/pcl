@@ -67,21 +67,25 @@
         (setf (gethash id *playlists*)
               (make-instance 'playlist :id id)))))
 
-(defun file-for-current-song-index (playlist)
+(defun file-for-current-song (playlist)
   (unless (at-end-p playlist)
     (column-value (nth-row (current-song-index playlist)
                            (songs playlist))
                   :file)))
 
-(defun position-of-current-song (playlist)
+;; `(current-song-index playlist)` is a property (slot accessor) which
+;; may get stale after editing the playlist, so this function recovers
+;; recovers the index of the current song (by matching against the a
+;; song's filepath)
+(defun find-current-song-index (playlist)
   (let* ((songs (songs playlist))
          (matcher (matching songs :file (file (current-song playlist))))
          (position 0))
     (do-rows (song songs)
       (when (funcall matcher song)
-        ;; Cannot simply use `(return position)` because `do-rows' defines an implicit
-        ;; `nil' block, so it would just break out of the loop but not out of the function
-        (return-from position-of-current-song position))
+        (return-from find-current-song-index position))
+      ;; we cannot use `(return position)` because `do-rows' defines an implicit
+      ;; `nil' block, so it would break out of the loop (not out of the function)
       (incf position))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -114,7 +118,8 @@
            #'matching
            (songs playlist)
            names-and-values))
-  (setf (current-song-index playlist) (or (position-of-current-song playlist) 0))
+  (setf (current-song-index playlist)
+        (or (find-current-song-index playlist) 0))
   (update-current-song playlist))
 
 (defun clear-playlist (playlist)
@@ -135,11 +140,11 @@
   (setf (shuffle playlist) :none)
   (apply-playlist-ordering playlist)
   (setf (current-song-index playlist)
-        (position-of-current-song playlist)))
+        (find-current-song-index playlist)))
 
 (defun update-current-song (playlist)
   (unless (equal (file (current-song playlist))
-                 (file-for-current-song-index playlist))
+                 (file-for-current-song playlist))
     (reset-current-song playlist)))
 
 (defun reset-current-song (playlist)
@@ -164,7 +169,7 @@
     (:none (apply-playlist-ordering playlist))
     (:song (shuffle-by-song playlist))
     (:album (shuffle-by-album playlist)))
-  (setf (current-song-index playlist) (position-of-current-song playlist)))
+  (setf (current-song-index playlist) (find-current-song-index playlist)))
 
 (defun shuffle-by-album (playlist)
   (with-labels

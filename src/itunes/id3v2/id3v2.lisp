@@ -79,6 +79,14 @@
   (:writer (out value)
     (when condition (write-value type out value))))
 
+(define-binary-type tag-id (length)
+  (:reader (in)
+    (let-return (id (read-value 'iso-8859-1-string in :length length))
+      (if (not (string= "ID3" id))
+          (error 'missing-id3-tag))))
+  (:writer (out id)
+    (write-value 'iso-8859-1-string out id :length length)))
+
 (define-tagged-binary-class id3-tag ()
     ((:class-finder (case major-version
                       (2 'id3v2.2-tag)
@@ -89,14 +97,6 @@
   (revision u1)
   (flags u1)
   (size id3-tag-size))
-
-(define-binary-type tag-id (length)
-  (:reader (in)
-    (let-return (id (read-value 'iso-8859-1-string in :length length))
-      (if (not (string= "ID3" id))
-          (error 'missing-id3-tag))))
-  (:writer (out id)
-    (write-value 'iso-8859-1-string out id :length length)))
 
 ;; frame IDs are just like other regular IDs in the ID3 spec, but they are
 ;; designed to signal the `in-padding' "exception" to transfer control up

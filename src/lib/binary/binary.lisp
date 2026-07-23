@@ -91,10 +91,6 @@ stack) currently being read/written."
     (dolist (item sequence)
       (assert (funcall predicate item))))
 
-  (defun remember-binary-type-args (type args)
-    (setf (get type 'binary-type-args) args)
-    (setf (get type 'binary-type-args-known-p) t))
-
   (defun binary-type-argument-keywords (type)
     (mapcar #'as-keyword (get type 'binary-type-args)))
 
@@ -108,19 +104,42 @@ stack) currently being read/written."
           :format-control "~s is a required argument keyword for binary type ~s in ~s, but it was omitted."
           :format-arguments (list keyword type context)))
 
+  (defun warn-about-forward-binary-type-reference (type context)
+    (warn 'binary-type-style-warning
+          :format-control "Binary type ~s in ~s is referenced before it has been defined."
+          :format-arguments (list type context)))
+
+  (defun remember-pending-binary-type-use (type args context)
+    (push (list args context) (get type 'binary-type-pending-uses)))
+
+  (defun validate-known-binary-type-args (type args context)
+    (let ((allowed-keywords (binary-type-argument-keywords type))
+          (supplied-keywords
+            (loop for rest on args by #'cddr collect (first rest))))
+      (loop for keyword in supplied-keywords
+            unless (and (keywordp keyword)
+                        (member keyword allowed-keywords))
+              do (warn-about-binary-type-argument type keyword context))
+      (loop for keyword in allowed-keywords
+            unless (member keyword supplied-keywords)
+              do (warn-about-missing-binary-type-argument
+                  type keyword context))))
+
+  (defun remember-binary-type-args (type args)
+    (setf (get type 'binary-type-args) args)
+    (setf (get type 'binary-type-args-known-p) t)
+    (let-when ((pending-uses (get type 'binary-type-pending-uses)))
+      (dolist (pending-use pending-uses)
+        (destructuring-bind (args context) pending-use
+          (validate-known-binary-type-args type args context)))
+      (remprop type 'binary-type-pending-uses)))
+
   (defun validate-binary-type-args (type args context)
-    (when (get type 'binary-type-args-known-p)
-      (let ((allowed-keywords (binary-type-argument-keywords type))
-            (supplied-keywords
-              (loop for rest on args by #'cddr collect (first rest))))
-        (loop for keyword in supplied-keywords
-              unless (and (keywordp keyword)
-                          (member keyword allowed-keywords))
-                do (warn-about-binary-type-argument type keyword context))
-        (loop for keyword in allowed-keywords
-              unless (member keyword supplied-keywords)
-                do (warn-about-missing-binary-type-argument
-                    type keyword context))))))
+    (if (get type 'binary-type-args-known-p)
+        (validate-known-binary-type-args type args context)
+        (progn
+          (remember-pending-binary-type-use type args context)
+          (warn-about-forward-binary-type-reference type context)))))
 
 ;; (id (iso-8859-1-string :length 3)) => (id (iso-8859-1-string :length 3))
 ;; (size u3))                         => (size (u3))
@@ -260,15 +279,15 @@ stack) currently being read/written."
     ;; derived from an existing type
     (1
      (with-gensyms (type stream value)
-       (destructuring-bind (derived-from &rest derived-args) (ensure-list (first spec))
-         (validate-binary-type-args derived-from derived-args `(define-binary-type ,name))
+       (destructuring-bind (super-type &rest derived-args) (ensure-list (first spec))
+         (validate-binary-type-args super-type derived-args `(define-binary-type ,name))
          `(progn
             (eval-when (:compile-toplevel :load-toplevel :execute)
               (remember-binary-type-args ',name ',args))
             (defmethod read-value ((,type (eql ',name)) ,stream &key ,@args)
-              (read-value ',derived-from ,stream ,@derived-args))
+              (read-value ',super-type ,stream ,@derived-args))
             (defmethod write-value ((,type (eql ',name)) ,stream ,value &key ,@args)
-              (write-value ',derived-from ,stream ,value ,@derived-args))))))
+              (write-value ',super-type ,stream ,value ,@derived-args))))))
     ;; specified with :reader and :writer methods
     (2
      (with-gensyms (type)

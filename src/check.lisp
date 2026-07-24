@@ -176,9 +176,9 @@ It DOES NOT compile/load any such dependencies the way `(ql:quickload ...)` woul
   (dolist (name system-names)
     (when (detailed-output-p verbosity)
       (format t "~&Compiling ASDF system ~a...~%" name))
-    ;; `:force t` because we actually want to get any style warnings, so we don't
-    ;; want to bypass any cache.
     (with-output-suppressed-unless ((full-output-p verbosity))
+      ;; `:force t` because we want to always see any style warnings (which are
+      ;; only shown when compilation is forced and the cached `fasl` file is discarded)
       (asdf:compile-system name :force t))))
 
 (defun load-systems (system-names verbosity)
@@ -193,8 +193,8 @@ It DOES NOT compile/load any such dependencies the way `(ql:quickload ...)` woul
 (defun check-verbosity-level ()
   (let ((value (string-downcase (or (uiop:getenv "CHECK_VERBOSE") ""))))
     (cond
-      ((member value '("" "0" "false" "no") :test #'string=) 0)
-      ((member value '("1" "true" "yes") :test #'string=) 1)
+      ((member value '("" "0") :test #'string=) 0)
+      ((string= value "1") 1)
       ((string= value "2") 2)
       ((string= value "3") 3)
       (t (error "Unsupported CHECK_VERBOSE value ~s; expected 0, 1, 2, or 3."
@@ -215,7 +215,7 @@ It DOES NOT compile/load any such dependencies the way `(ql:quickload ...)` woul
             "~&PROJECT CHECKS FAILED: produced ~d style warning~:p.~%"
             style-warnings-count)))
 
-(defun report-test-output-log (test-output-filepath)
+(defun report-test-output (test-output-filepath)
   (format *error-output*
           "~&Test output/errors written to ~a."
           (namestring test-output-filepath))
@@ -255,16 +255,16 @@ It DOES NOT compile/load any such dependencies the way `(ql:quickload ...)` woul
   (and *compile-file-truename*
        (pathname-prefix-p (get-source-dirpath) *compile-file-truename*)))
 
-(defun handle-warning (condition &key warnings-stream verbosity warning-count style-warning-count)
+(defun handle-warning (condition &key warnings-stream verbosity warnings-count style-warnings-count)
   (when (and (typep condition 'style-warning)
              (compiling-project-file-p)
              (not (ignorable-warning-p condition)))
-    (incf (car style-warning-count)))
+    (incf (car style-warnings-count)))
   (cond
     ((and (not (full-output-p verbosity))
           (not (ignorable-warning-p condition)))
-     (incf (car warning-count))
-     (write-warning condition warnings-stream (car warning-count))
+     (incf (car warnings-count))
+     (write-warning condition warnings-stream (car warnings-count))
      (muffle-warning condition))
     ((and (not (full-output-p verbosity))
           (ignorable-warning-p condition))
@@ -272,8 +272,8 @@ It DOES NOT compile/load any such dependencies the way `(ql:quickload ...)` woul
 
 (defun run-function (function &key verbosity)
   "Run `function`, capturing warnings to a file unless full output is enabled."
-  (let ((warning-count (list 0))
-        (style-warning-count (list 0))
+  (let ((warnings-count (list 0))
+        (style-warnings-count (list 0))
         (warnings-file (get-warnings-filepath)))
     (flet ((invoke-with-warning-capture (warnings-stream)
              (handler-bind
@@ -282,8 +282,8 @@ It DOES NOT compile/load any such dependencies the way `(ql:quickload ...)` woul
                       (handle-warning condition
                                       :warnings-stream warnings-stream
                                       :verbosity verbosity
-                                      :warning-count warning-count
-                                      :style-warning-count style-warning-count))))
+                                      :warnings-count warnings-count
+                                      :style-warnings-count style-warnings-count))))
                (let ((*compile-verbose* (full-output-p verbosity))
                      (*compile-print* (full-output-p verbosity))
                      (*load-verbose* (full-output-p verbosity)))
@@ -295,9 +295,9 @@ It DOES NOT compile/load any such dependencies the way `(ql:quickload ...)` woul
                                                 :if-exists :supersede
                                                 :if-does-not-exist :create)
                           (invoke-with-warning-capture stream)))))
-        (report-suppressed-warnings (car warning-count) warnings-file)
-        (report-style-warnings (car style-warning-count))
-        (if (plusp (car style-warning-count)) 1 result)))))
+        (report-suppressed-warnings (car warnings-count) warnings-file)
+        (report-style-warnings (car style-warnings-count))
+        (if (plusp (car style-warnings-count)) 1 result)))))
 
 (defun run-tests-under (source-dirpath &key verbosity)
   "Runs all tests under `source-dirpath`.
@@ -337,7 +337,7 @@ Returns 0 if there are no failures, and 1 if there are any failures."
                          (run-system-tests system-names verbosity stream)))))
             (when failures
               (unless (test-output-p verbosity)
-                (report-test-output-log test-output-file))
+                (report-test-output test-output-file))
               (error "~d ASDF system~:p failed project checks."
                      (length failures))))
           (format t "~&ALL PROJECT CHECKS PASSED~%"))

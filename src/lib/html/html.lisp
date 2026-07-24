@@ -12,13 +12,13 @@
 (defmacro with-html-output ((stream &key (pretty *pretty*)) &body body)
   `(let* ((*html-output* ,stream)
           (*pretty* ,pretty))
-    ,@body))
+     ,@body))
 
 (defmacro with-html-to-file ((file &key (pretty *pretty*)) &body body)
   (with-gensyms (stream)
     `(with-open-file (,stream ,file :direction :output :if-exists :supersede)
-      (with-html-output (,stream :pretty ,pretty)
-        ,@body))))
+       (with-html-output (,stream :pretty ,pretty)
+         ,@body))))
 
 (defmacro in-html-style (syntax)
   (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -31,10 +31,10 @@
 (defmacro html (&whole whole &body body)
   (declare (ignore body))
   `(if *pretty*
-     (macrolet ((html (&body body) (codegen-html (sexp->ops body) t)))
-       (let ((*html-pretty-printer* (get-pretty-printer))) ,whole))
-     (macrolet ((html (&body body) (codegen-html (sexp->ops body) nil)))
-       ,whole)))
+       (macrolet ((html (&body body) (codegen-html (sexp->ops body) t)))
+         (let ((*html-pretty-printer* (get-pretty-printer))) ,whole))
+       (macrolet ((html (&body body) (codegen-html (sexp->ops body) nil)))
+         ,whole)))
 
 ;;; Helpers for public API
 
@@ -71,7 +71,8 @@
       (loop for start = 0 then (1+ pos)
             for pos = (position-if #'needs-escape-p in :start start)
             do (write-sequence in out :start start :end pos)
-            when pos do (write-sequence (escape-char (char in pos)) out)
+            when pos
+              do (write-sequence (escape-char (char in pos)) out)
             while pos))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -85,10 +86,10 @@
 
 (defun emit (ip string)
   (loop for start = 0 then (1+ pos)
-     for pos = (position #\Newline string :start start)
-     do (emit/no-newlines ip string :start start :end pos)
-     when pos do (emit-newline ip)
-     while pos))
+        for pos = (position #\Newline string :start start)
+        do (emit/no-newlines ip string :start start :end pos)
+        when pos do (emit-newline ip)
+          while pos))
 
 (defun emit/no-newlines (ip string &key (start 0) end)
   (indent-if-necessary ip)
@@ -136,8 +137,8 @@
 
 (defmethod raw-string ((pp html-pretty-printer) string &optional newlines-p)
   (if newlines-p
-    (emit (printer pp) string)
-    (emit/no-newlines (printer pp) string)))
+      (emit (printer pp) string)
+      (emit/no-newlines (printer pp) string)))
 
 (defmethod newline ((pp html-pretty-printer))
   (emit-newline (printer pp)))
@@ -203,8 +204,8 @@
 
 (defun sexp->ops (body)
   (loop with compiler = (make-instance 'html-compiler)
-     for form in body do (process compiler form)
-     finally (return (ops compiler))))
+        for form in body do (process compiler form)
+        finally (return (ops compiler))))
 
 (defun optimize-static-output (ops)
   (let ((new-ops (make-op-buffer)))
@@ -213,11 +214,11 @@
                (compile-buffer buf new-ops)
                (push-op op new-ops)))
         (loop for op across ops do
-             (ecase (first op)
-               (:raw-string (write-sequence (second op) buf))
-               ((:newline :embed-value :embed-code) (add-op op))
-               ((:indent :unindent :freshline :toggle-indenting)
-                (when *pretty* (add-op op)))))
+          (ecase (first op)
+            (:raw-string (write-sequence (second op) buf))
+            ((:newline :embed-value :embed-code) (add-op op))
+            ((:indent :unindent :freshline :toggle-indenting)
+             (when *pretty* (add-op op)))))
         (compile-buffer buf new-ops)))
     new-ops))
 
@@ -225,12 +226,13 @@
   "Compile a string possibly containing newlines into a sequence of
 :raw-string and :newline ops."
   (loop with str = (get-output-stream-string buf)
-     for start = 0 then (1+ pos)
-     for pos = (position #\Newline str :start start)
-     when (< start (length str))
-     do (push-op `(:raw-string ,(subseq str start pos) nil) ops)
-     when pos do (push-op '(:newline) ops)
-     while pos))
+        for start = 0 then (1+ pos)
+        for pos = (position #\Newline str :start start)
+        when (< start (length str))
+          do (push-op `(:raw-string ,(subseq str start pos) nil) ops)
+        when pos
+          do (push-op '(:newline) ops)
+        while pos))
 
 (defun gen-code (ops)
   (loop for op across ops collect (apply #'op->code op)))
@@ -240,43 +242,48 @@
 (defmethod op->code ((op (eql :raw-string)) &rest operands)
   (destructuring-bind (string check-for-newlines) operands
     (if *pretty*
-      `(raw-string *html-pretty-printer* ,string ,check-for-newlines)
-      `(write-sequence ,string *html-output*))))
+        `(raw-string *html-pretty-printer* ,string ,check-for-newlines)
+        `(write-sequence ,string *html-output*))))
 
 (defmethod op->code ((op (eql :newline)) &rest operands)
+  (declare (ignore op operands))
   (if *pretty*
-    `(newline *html-pretty-printer*)
-    `(write-char #\Newline *html-output*)))
+      `(newline *html-pretty-printer*)
+      `(write-char #\Newline *html-output*)))
 
 (defmethod op->code ((op (eql :freshline)) &rest operands)
+  (declare (ignore operands))
   (if *pretty*
-    `(freshline *html-pretty-printer*)
-    (error "Bad op when not pretty-printing: ~a" op)))
+      `(freshline *html-pretty-printer*)
+      (error "Bad op when not pretty-printing: ~a" op)))
 
 (defmethod op->code ((op (eql :indent)) &rest operands)
+  (declare (ignore operands))
   (if *pretty*
-    `(indent *html-pretty-printer*)
-    (error "Bad op when not pretty-printing: ~a" op)))
+      `(indent *html-pretty-printer*)
+      (error "Bad op when not pretty-printing: ~a" op)))
 
 (defmethod op->code ((op (eql :unindent)) &rest operands)
+  (declare (ignore operands))
   (if *pretty*
-    `(unindent *html-pretty-printer*)
-    (error "Bad op when not pretty-printing: ~a" op)))
+      `(unindent *html-pretty-printer*)
+      (error "Bad op when not pretty-printing: ~a" op)))
 
 (defmethod op->code ((op (eql :toggle-indenting)) &rest operands)
+  (declare (ignore operands))
   (if *pretty*
-    `(toggle-indenting *html-pretty-printer*)
-    (error "Bad op when not pretty-printing: ~a" op)))
+      `(toggle-indenting *html-pretty-printer*)
+      (error "Bad op when not pretty-printing: ~a" op)))
 
 (defmethod op->code ((op (eql :embed-value)) &rest operands)
   (destructuring-bind (value escapes) operands
     (if *pretty*
-      (if escapes
-        `(raw-string *html-pretty-printer* (escape (princ-to-string ,value) ,escapes) t)
-        `(raw-string *html-pretty-printer* (princ-to-string ,value) t))
-      (if escapes
-        `(write-sequence (escape (princ-to-string ,value) ,escapes) *html-output*)
-        `(princ ,value *html-output*)))))
+        (if escapes
+            `(raw-string *html-pretty-printer* (escape (princ-to-string ,value) ,escapes) t)
+            `(raw-string *html-pretty-printer* (princ-to-string ,value) t))
+        (if escapes
+            `(write-sequence (escape (princ-to-string ,value) ,escapes) *html-output*)
+            `(princ ,value *html-output*)))))
 
 (defmethod op->code ((op (eql :embed-code)) &rest operands)
   (first operands))
@@ -314,8 +321,8 @@
 
 (defun parse-cons-form (sexp)
   (if (consp (first sexp))
-    (parse-explicit-attributes-sexp sexp)
-    (parse-implicit-attributes-sexp sexp)))
+      (parse-explicit-attributes-sexp sexp)
+      (parse-implicit-attributes-sexp sexp)))
 
 (defun parse-explicit-attributes-sexp (sexp)
   (destructuring-bind ((tag &rest attributes) &body body) sexp
@@ -323,13 +330,13 @@
 
 (defun parse-implicit-attributes-sexp (sexp)
   (loop with tag = (first sexp)
-     for rest on (rest sexp) by #'cddr
-     while (and (keywordp (first rest)) (second rest))
-     when (second rest)
-     collect (first rest) into attributes and
-     collect (second rest) into attributes
-     end
-     finally (return (values tag attributes rest))))
+        for rest on (rest sexp) by #'cddr
+        while (and (keywordp (first rest)) (second rest))
+        when (second rest)
+          collect (first rest) into attributes
+          and collect (second rest) into attributes
+        end
+        finally (return (values tag attributes rest))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; SEXP-HTML
@@ -356,8 +363,8 @@
 
 (defun process-sexp-html (processor form)
   (if (self-evaluating-p form)
-    (raw-string processor (escape (princ-to-string form) *escapes*) t)
-    (process-cons-sexp-html processor form)))
+      (raw-string processor (escape (princ-to-string form) *escapes*) t)
+      (process-cons-sexp-html processor form)))
 
 (defun process-cons-sexp-html (processor form)
   (when (string= *escapes* *attribute-escapes*)
@@ -376,10 +383,10 @@
 
 (defun emit-attributes (processor attributes)
   (loop for (k v) on attributes by #'cddr do
-       (raw-string processor (format nil " ~(~a~)='" k))
-       (let ((*escapes* *attribute-escapes*))
-         (process processor (if (eql v t) (string-downcase k) v)))
-       (raw-string processor "'")))
+    (raw-string processor (format nil " ~(~a~)='" k))
+    (let ((*escapes* *attribute-escapes*))
+      (process processor (if (eql v t) (string-downcase k) v)))
+    (raw-string processor "'")))
 
 (defun emit-element-body (processor tag body)
   (when (block-element-p tag)
@@ -424,8 +431,8 @@
   (multiple-value-bind (attribute-var args)
       (parse-html-macro-lambda-list args)
     (if attribute-var
-      (gen-macro-with-attributes name attribute-var args body)
-      (gen-macro-no-attributes name args body))))
+        (gen-macro-with-attributes name attribute-var args body)
+        (gen-macro-no-attributes name args body))))
 
 (defun gen-macro-with-attributes (name attribute-args args body)
   (with-gensyms (attributes form-body)
@@ -456,10 +463,10 @@
 (defun expand-macro-form (form)
   (if (or (consp (first form))
           (get (first form) 'html-macro-wants-attributes))
-    (multiple-value-bind (tag attributes body) (parse-cons-form form)
-      (funcall (get tag 'html-macro) attributes body))
-    (destructuring-bind (tag &body body) form
-      (funcall (get tag 'html-macro) body))))
+      (multiple-value-bind (tag attributes body) (parse-cons-form form)
+        (funcall (get tag 'html-macro) attributes body))
+      (destructuring-bind (tag &body body) form
+        (funcall (get tag 'html-macro) body))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Special Forms
@@ -474,8 +481,8 @@
 
 (define-html-special-operator :format (processor &rest args)
   (if (every #'self-evaluating-p args)
-    (process-sexp-html processor (apply #'format nil args))
-    (embed-value processor `(format nil ,@args))))
+      (process-sexp-html processor (apply #'format nil args))
+      (embed-value processor `(format nil ,@args))))
 
 (define-html-special-operator :progn (processor &rest body)
   (loop for exp in body do (process processor exp)))

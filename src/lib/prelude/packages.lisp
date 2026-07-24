@@ -4,6 +4,7 @@
   (:use #:cl)
   (:export #:as-keyword
            #:ensure-list
+           #:dbind
            #:let-guard
            #:let-when
            #:let-when*

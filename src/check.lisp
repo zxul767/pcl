@@ -15,13 +15,15 @@
   "Returns the path of the source directory of the current file."
   (uiop:pathname-directory-pathname *load-truename*))
 
-(defun get-warnings-filepath ()
-  "Returns the path of the warnings log file.
+(defun get-log-filepath (filename)
+  "Returns the path of a log file in the current working directory."
+  (merge-pathnames filename (uiop:getcwd)))
 
-By convention, it is placed on the parent directory of the source directory."
-  (merge-pathnames
-   "warnings.log"
-   (uiop:pathname-parent-directory-pathname (get-source-dirpath))))
+(defun get-warnings-filepath ()
+  (get-log-filepath "warnings.log"))
+
+(defun get-test-output-filepath ()
+  (get-log-filepath "test-output.log"))
 
 (defun get-local-system-names (dirpath)
   ;; ASDF requires each primary system to have the same name as its .asd file.
@@ -32,6 +34,21 @@ By convention, it is placed on the parent directory of the source directory."
     (loop for file in (asd-files-under dirpath)
           for name = (pathname-name file)
           unless (tests-system-p name) collect name)
+    :test #'string=)
+   #'string<))
+
+(defun find-system (name)
+  (let ((raise-error-p nil))
+    (asdf:find-system name raise-error-p)))
+
+(defun get-local-test-system-names (system-names)
+  "Returns the counterpart test systems for `system-names`."
+  (sort
+   (remove-duplicates
+    (loop for system-name in system-names
+          for test-system-name = (format nil "~a/tests" system-name)
+          when (find-system test-system-name)
+            collect test-system-name)
     :test #'string=)
    #'string<))
 
@@ -69,7 +86,7 @@ It DOES NOT compile/load any such dependencies the way `(ql:quickload ...)` woul
   (if (member system-name seen :test #'string=)
       seen
       (let ((seen (cons system-name seen)) ;; track systems to avoid infinite loops
-            (asdf-system (asdf:find-system system-name nil))
+            (asdf-system (find-system system-name))
             (quicklisp-system (ql-dist:find-system system-name)))
         (cond
           (asdf-system
@@ -95,85 +112,235 @@ It DOES NOT compile/load any such dependencies the way `(ql:quickload ...)` woul
       ;; install the system itself...
       (setf seen (ensure-system-dependencies system-name seen))
       (let ((tests-system-name (format nil "~a/tests" system-name)))
-        (when (asdf:find-system tests-system-name nil)
-          ;; ...and its test system
+        ;; ...and its test system
+        (when (find-system tests-system-name)
           (setf seen (ensure-system-dependencies tests-system-name seen)))))))
 
-(defun run-system-test (system-name index)
+(defun detailed-output-p (verbosity)
+  (>= verbosity 1))
+
+(defun test-output-p (verbosity)
+  (>= verbosity 2))
+
+(defun full-output-p (verbosity)
+  (>= verbosity 3))
+
+(defun call-with-redirected-output (function stream)
+  (with-open-stream (input (make-string-input-stream ""))
+    (with-open-stream (io (make-two-way-stream input stream))
+      (let ((*standard-output* stream)
+            (*error-output* stream)
+            (*trace-output* stream)
+            (*debug-io* io)
+            (*query-io* io)
+            (*terminal-io* io))
+        (funcall function)))))
+
+(defun call-with-output-suppressed (function)
+  (with-open-stream (stream (make-broadcast-stream))
+    (call-with-redirected-output function stream)))
+
+(defmacro with-output-suppressed-unless ((condition) &body body)
+  `(if ,condition
+       (progn ,@body)
+       (call-with-output-suppressed (lambda () ,@body))))
+
+(defun run-system-test (system-name index &key verbosity output-stream)
   (handler-case
       (progn
-        (format t "~&~a. Testing ASDF system ~a...~%" index system-name)
-        (asdf:test-system system-name)
+        (when (detailed-output-p verbosity)
+          (format t "~&~a. Testing ASDF system ~a...~%" index system-name))
+        (if (test-output-p verbosity)
+            (asdf:test-system system-name)
+            (progn
+              (format output-stream
+                      "~&~a. Testing ASDF system ~a...~%"
+                      index system-name)
+              (call-with-redirected-output
+               (lambda () (asdf:test-system system-name))
+               output-stream)))
         nil)
     (error (condition)
       (format *error-output* "~&ASDF system ~a failed: ~a~%"
               system-name condition)
       (cons system-name condition))))
 
-(defun run-system-tests (system-names)
-  (loop for i = 0 then (1+ i) for name in system-names
-        for failure = (run-system-test name i)
+(defun run-system-tests (system-names verbosity test-output-stream)
+  (loop for index = 0 then (1+ index) for name in system-names
+        for failure = (run-system-test name index
+                                       :verbosity verbosity
+                                       :output-stream test-output-stream)
         when failure collect failure))
 
-(defun verbose-checks-p ()
-  (member (string-downcase (or (uiop:getenv "CHECK_VERBOSE") ""))
-          '("1" "true" "yes")
-          :test #'string=))
+(defun compile-systems (system-names verbosity)
+  (dolist (name system-names)
+    (when (detailed-output-p verbosity)
+      (format t "~&Compiling ASDF system ~a...~%" name))
+    (with-output-suppressed-unless ((full-output-p verbosity))
+      ;; `:force t` because we want to always see any style warnings (which are
+      ;; only shown when compilation is forced and the cached `fasl` file is discarded)
+      (asdf:compile-system name :force t))))
+
+(defun load-systems (system-names verbosity)
+  (dolist (name system-names)
+    (when (detailed-output-p verbosity)
+      (format t "~&Loading ASDF system ~a...~%" name))
+    (with-output-suppressed-unless ((full-output-p verbosity))
+      (ql:quickload name
+                    :silent (not (full-output-p verbosity))
+                    :verbose (full-output-p verbosity)))))
+
+(defun check-verbosity-level ()
+  (let ((value (string-downcase (or (uiop:getenv "CHECK_VERBOSE") ""))))
+    (cond
+      ((member value '("" "0") :test #'string=) 0)
+      ((string= value "1") 1)
+      ((string= value "2") 2)
+      ((string= value "3") 3)
+      (t (error "Unsupported CHECK_VERBOSE value ~s; expected 0, 1, 2, or 3."
+                value)))))
 
 (defun write-warning (condition stream number)
   (format stream "~&[~d] ~s~%~a~2%" number (type-of condition) condition))
 
 (defun report-suppressed-warnings (count warnings-file)
   (when (plusp count)
-    (format t "~&Suppressed ~d warning~:p; details written to ~a. ~
-               Rerun with CHECK_VERBOSE=1 to print them.~%"
-            count (namestring warnings-file))))
+    (format t "~&Suppressed ~d warning~:p; details written to ~a."
+            count (namestring warnings-file))
+    (format t "~&Rerun with CHECK_VERBOSE=3 to print all warnings.~%")))
 
-(defun run-function (function &key verbose)
-  "Run `function`, capturing warnings to a file when `verbose` is `nil`."
-  (let ((warning-count 0)
+(defun report-style-warnings (style-warnings-count)
+  (when (plusp style-warnings-count)
+    (format *error-output*
+            "~&PROJECT CHECKS FAILED: produced ~d style warning~:p.~%"
+            style-warnings-count)))
+
+(defun report-test-output (test-output-filepath)
+  (format *error-output*
+          "~&Test output/errors written to ~a."
+          (namestring test-output-filepath))
+  (format *error-output* "~&Rerun with CHECK_VERBOSE=2 to print test output.~%"))
+
+(defun condition-type-origin (condition-type)
+  (and (symbolp condition-type)
+       (symbol-package condition-type)
+       (package-name (symbol-package condition-type))))
+
+(defun sbcl-redefinition-warning-p (condition)
+  (let ((type (type-of condition)))
+    (and (string= "SB-KERNEL" (condition-type-origin type))
+         (let ((name (symbol-name type))
+               (redefinition-prefix "REDEFINITION-"))
+           (and (<= (length redefinition-prefix) (length name))
+                (string= redefinition-prefix name
+                         :end2 (length redefinition-prefix)))))))
+
+(defun ccl-redefinition-warning-p (condition)
+  (let ((type (type-of condition)))
+    (and (string= "CCL" (condition-type-origin type))
+         (string= "COMPILER-WARNING" (symbol-name type))
+         (search "Duplicate definitions" (princ-to-string condition)))))
+
+(defun ignorable-warning-p (condition)
+  (or (sbcl-redefinition-warning-p condition)
+      (ccl-redefinition-warning-p condition)))
+
+(defun pathname-prefix-p (prefix pathname)
+  (let ((prefix (namestring (truename prefix)))
+        (pathname (namestring (truename pathname))))
+    (and (<= (length prefix) (length pathname))
+         (string= prefix pathname :end2 (length prefix)))))
+
+(defun compiling-project-file-p ()
+  (and *compile-file-truename*
+       (pathname-prefix-p (get-source-dirpath) *compile-file-truename*)))
+
+(defun handle-warning (condition &key warnings-stream verbosity warnings-count style-warnings-count)
+  (when (and (typep condition 'style-warning)
+             (compiling-project-file-p)
+             (not (ignorable-warning-p condition)))
+    (incf (car style-warnings-count)))
+  (cond
+    ((and (not (full-output-p verbosity))
+          (not (ignorable-warning-p condition)))
+     (incf (car warnings-count))
+     (write-warning condition warnings-stream (car warnings-count))
+     (muffle-warning condition))
+    ((and (not (full-output-p verbosity))
+          (ignorable-warning-p condition))
+     (muffle-warning condition))))
+
+(defun run-function (function &key verbosity)
+  "Run `function`, capturing warnings to a file unless full output is enabled."
+  (let ((warnings-count (list 0))
+        (style-warnings-count (list 0))
         (warnings-file (get-warnings-filepath)))
     (flet ((invoke-with-warning-capture (warnings-stream)
              (handler-bind
                  ((warning
                     (lambda (condition)
-                      (unless verbose
-                        (incf warning-count)
-                        (write-warning condition warnings-stream warning-count)
-                        (muffle-warning condition)))))
-               (let ((*compile-verbose* verbose)
-                     (*compile-print* verbose)
-                     (*load-verbose* verbose))
+                      (handle-warning condition
+                                      :warnings-stream warnings-stream
+                                      :verbosity verbosity
+                                      :warnings-count warnings-count
+                                      :style-warnings-count style-warnings-count))))
+               (let ((*compile-verbose* (full-output-p verbosity))
+                     (*compile-print* (full-output-p verbosity))
+                     (*load-verbose* (full-output-p verbosity)))
                  (funcall function)))))
-      (prog1
-          (if verbose
-              (invoke-with-warning-capture nil)
-              (with-open-file (stream warnings-file
-                                      :direction :output
-                                      :if-exists :supersede
-                                      :if-does-not-exist :create)
-                (invoke-with-warning-capture stream)))
-        (report-suppressed-warnings warning-count warnings-file)))))
+      (let ((result (if (full-output-p verbosity)
+                        (invoke-with-warning-capture nil)
+                        (with-open-file (stream warnings-file
+                                                :direction :output
+                                                :if-exists :supersede
+                                                :if-does-not-exist :create)
+                          (invoke-with-warning-capture stream)))))
+        (report-suppressed-warnings (car warnings-count) warnings-file)
+        (report-style-warnings (car style-warnings-count))
+        (if (plusp (car style-warnings-count)) 1 result)))))
 
-(defun run-tests-under (source-dirpath &key verbose)
+(defun run-tests-under (source-dirpath &key verbosity)
   "Runs all tests under `source-dirpath`.
 Returns 0 if there are no failures, and 1 if there are any failures."
   (handler-case
-      (let ((system-names (get-local-system-names source-dirpath)))
+      (let* ((system-names (get-local-system-names source-dirpath))
+             (test-system-names (get-local-test-system-names system-names))
+             (compiled-system-names (append system-names test-system-names)))
         ;; Install third-party dependencies before opening an ASDF session
         ;; so Quicklisp downloads do not invalidate its action plan.
+        (format t "~&Ensuring dependencies...~%")
         (ensure-all-dependencies system-names)
 
+        ;; Force compilation of every discovered primary system before
+        ;; loading/testing. Include test systems too so warm-cache runs do not
+        ;; skip warnings in test code.
+        (format t "~&Compiling systems...~%")
+        (compile-systems compiled-system-names verbosity)
+
         (asdf/session:with-asdf-session (:override t)
-          ;; Compile and load every discovered primary system.  Using the same
-          ;; discovery as the test phase keeps new .asd files covered by CI.
-          (ql:quickload system-names :silent (not verbose) :verbose verbose)
+          ;; Load every discovered primary system and its test systems. Using
+          ;; the same discovery as the test phase keeps new .asd files covered
+          ;; by CI and ensures test load-time warnings are not skipped on warm
+          ;; caches.
+          (format t "~&Loading systems...~%")
+          (load-systems compiled-system-names verbosity)
           ;; Run all subsystems' tests.
-          (let ((failures (run-system-tests system-names)))
+          (format t "~&Testing systems...~%")
+          (let* ((test-output-file (get-test-output-filepath))
+                 (failures
+                   (if (test-output-p verbosity)
+                       (run-system-tests system-names verbosity nil)
+                       (with-open-file (stream test-output-file
+                                               :direction :output
+                                               :if-exists :supersede
+                                               :if-does-not-exist :create)
+                         (run-system-tests system-names verbosity stream)))))
             (when failures
+              (unless (test-output-p verbosity)
+                (report-test-output test-output-file))
               (error "~d ASDF system~:p failed project checks."
                      (length failures))))
-          (format t "~%ALL PROJECT CHECKS PASSED~%"))
+          (format t "~&ALL PROJECT CHECKS PASSED~%"))
         0) ;; success exit code
     (error (condition)
       (format *error-output* "~&PROJECT CHECKS FAILED: ~a~%" condition)
@@ -181,11 +348,11 @@ Returns 0 if there are no failures, and 1 if there are any failures."
 
 (defun run-tests-and-quit ()
   "Run all tests for the project and quit with exit status."
-  (let ((verbose (verbose-checks-p)))
+  (let ((verbosity (check-verbosity-level)))
     (uiop:quit
      (run-function
-      (lambda () (run-tests-under (get-source-dirpath) :verbose verbose))
-      :verbose verbose))))
+      (lambda () (run-tests-under (get-source-dirpath) :verbosity verbosity))
+      :verbosity verbosity))))
 
 (defun main ()
   (run-tests-and-quit))

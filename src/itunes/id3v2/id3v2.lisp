@@ -1,9 +1,5 @@
 (in-package #:dev.zxul767.id3v2)
 
-;; two-byte encodings require knowing whether the first logical byte is written out first
-(defvar *bom-big-endian* #xfeff)
-(defvar *bom-little-endian* #xfffe)
-
 (defparameter *silence-errors* nil)
 
 (defparameter *id3-v1-genres*
@@ -83,6 +79,14 @@
   (:writer (out value)
     (when condition (write-value type out value))))
 
+(define-binary-type tag-id (length)
+  (:reader (in)
+    (let-return (id (read-value 'iso-8859-1-string in :length length))
+      (if (not (string= "ID3" id))
+          (error 'missing-id3-tag))))
+  (:writer (out id)
+    (write-value 'iso-8859-1-string out id :length length)))
+
 (define-tagged-binary-class id3-tag ()
     ((:class-finder (case major-version
                       (2 'id3v2.2-tag)
@@ -93,14 +97,6 @@
   (revision u1)
   (flags u1)
   (size id3-tag-size))
-
-(define-binary-type tag-id (length)
-  (:reader (in)
-    (let-return (id (read-value 'iso-8859-1-string in :length length))
-      (if (not (string= "ID3" id))
-          (error 'missing-id3-tag))))
-  (:writer (out id)
-    (write-value 'iso-8859-1-string out id :length length)))
 
 ;; frame IDs are just like other regular IDs in the ID3 spec, but they are
 ;; designed to signal the `in-padding' "exception" to transfer control up
@@ -309,25 +305,28 @@
 
 (define-binary-class text-info-frame ()
   (encoding u1)
-  (information (id3-encoded-string :encoding encoding :length (bytes-left 1))))
+  (information (id3-encoded-string :encoding encoding
+                                   :length (bytes-left-in-current-object 1)
+                                   :terminator nil)))
 
 (define-binary-class comment-frame ()
   (encoding u1)
   (language (iso-8859-1-string :length 3))
-  (description (id3-encoded-string :encoding encoding :terminator +null+))
+  (description (id3-encoded-string :encoding encoding :length nil :terminator +null+))
   (text (id3-encoded-string
          :encoding encoding
-         :length (bytes-left
-                  (+ 1 ; encoding
-                     3 ; language
-                     (encoded-string-length description encoding t))))))
+         :length (bytes-left-in-current-object
+                  (+ 1                  ; encoding
+                     3                  ; language
+                     (encoded-string-length description encoding t)))
+         :terminator nil)))
 
-(defun bytes-left (bytes-read)
+(defun bytes-left-in-current-object (bytes-read)
   (- (size (first-object-in-processing-stack))
      bytes-read))
 
-(defun encoded-string-length (string encoding terminated)
-  (let ((characters (+ (length string) (if terminated 1 0))))
+(defun encoded-string-length (string encoding terminated-p)
+  (let ((characters (+ (length string) (if terminated-p 1 0))))
     (* characters (ecase encoding (0 1) (1 2)))))
 
 (defun upto-null (string)

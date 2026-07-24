@@ -24,10 +24,10 @@
 ;; -----------------------------------------------------------------------------
 ;; Interfaces
 ;; -----------------------------------------------------------------------------
-(defgeneric read-value (type stream &key)
+(defgeneric read-value (type stream &key &allow-other-keys)
   (:documentation "Read a value of the given type from the stream."))
 
-(defgeneric write-value (type stream value &key)
+(defgeneric write-value (type stream value &key &allow-other-keys)
   (:documentation "Write a value as the given type to the stream."))
 
 (defgeneric read-object (object stream)
@@ -85,9 +85,61 @@ stack) currently being read/written."
 ;; General Helper Functions & Macros
 ;; -----------------------------------------------------------------------------
 (eval-when (:compile-toplevel :load-toplevel :execute)
+  (define-condition binary-type-style-warning (style-warning simple-condition) ())
+
   (defun assert-all (predicate sequence)
     (dolist (item sequence)
-      (assert (funcall predicate item)))))
+      (assert (funcall predicate item))))
+
+  (defun binary-type-argument-keywords (type)
+    (mapcar #'as-keyword (get type 'binary-type-args)))
+
+  (defun warn-about-binary-type-argument (type keyword context)
+    (warn 'binary-type-style-warning
+          :format-control "~s is not a known argument keyword for binary type ~s in ~s."
+          :format-arguments (list keyword type context)))
+
+  (defun warn-about-missing-binary-type-argument (type keyword context)
+    (warn 'binary-type-style-warning
+          :format-control "~s is a required argument for type ~s in ~s, but it was omitted."
+          :format-arguments (list keyword type context)))
+
+  (defun warn-about-forward-binary-type-reference (type context)
+    (warn 'binary-type-style-warning
+          :format-control "Binary type ~s in ~s is referenced before it has been defined."
+          :format-arguments (list type context)))
+
+  (defun remember-pending-binary-type-use (type args context)
+    (push (list args context) (get type 'binary-type-pending-uses)))
+
+  (defun validate-known-binary-type-args (type args context)
+    (let ((allowed-keywords (binary-type-argument-keywords type))
+          (supplied-keywords
+            (loop for rest on args by #'cddr collect (first rest))))
+      (loop for keyword in supplied-keywords
+            unless (and (keywordp keyword)
+                        (member keyword allowed-keywords))
+              do (warn-about-binary-type-argument type keyword context))
+      (loop for keyword in allowed-keywords
+            unless (member keyword supplied-keywords)
+              do (warn-about-missing-binary-type-argument
+                  type keyword context))))
+
+  (defun remember-binary-type-args (type args)
+    (setf (get type 'binary-type-args) args)
+    (setf (get type 'binary-type-args-known-p) t)
+    (let-when ((pending-uses (get type 'binary-type-pending-uses)))
+      (dolist (pending-use pending-uses)
+        (dbind (args context) pending-use
+          (validate-known-binary-type-args type args context)))
+      (remprop type 'binary-type-pending-uses)))
+
+  (defun validate-binary-type-args (type args context)
+    (if (get type 'binary-type-args-known-p)
+        (validate-known-binary-type-args type args context)
+        (progn
+          (remember-pending-binary-type-use type args context)
+          (warn-about-forward-binary-type-reference type context)))))
 
 ;; (id (iso-8859-1-string :length 3)) => (id (iso-8859-1-string :length 3))
 ;; (size u3))                         => (size (u3))
@@ -96,7 +148,8 @@ stack) currently being read/written."
 
 (defmacro with-slot-parts ((name type args) slot &body body)
   (assert-all #'symbolp (list name type args))
-  `(destructuring-bind (,name (,type &rest ,args)) (normalize-slot ,slot)
+  `(dbind (,name (,type &rest ,args)) (normalize-slot ,slot)
+     (validate-binary-type-args ,type ,args ,slot)
      ,@body))
 
 ;; -----------------------------------------------------------------------------
@@ -109,6 +162,7 @@ stack) currently being read/written."
   (with-gensyms (object stream)
     `(progn
        (eval-when (:compile-toplevel :load-toplevel :execute)
+         (remember-binary-type-args ',name nil)
          (setf (get ',name 'slots) ',(mapcar #'first slots))
          (setf (get ',name 'superclasses) ',superclasses))
 
@@ -118,11 +172,12 @@ stack) currently being read/written."
        ,@read-method
 
        (defmethod write-object progn ((,object ,name) ,stream)
+         (declare (ignorable ,stream))
          (with-slots ,(all-combined-slots slots superclasses) ,object
            ,@(gen-write-slot-expressions slots stream))))))
 
 (defun gen-defclass-slots (slots)
-  (loop for (name _) in slots
+  (loop for (name) in slots
         collect `(,name :initarg ,(as-keyword name) :accessor ,name)))
 
 (defun gen-write-slot-expressions (slots stream)
@@ -162,6 +217,7 @@ stack) currently being read/written."
   (with-gensyms (object stream)
     `(define-generic-binary-class ,name ,superclasses ,slots
        (defmethod read-object progn ((,object ,name) ,stream)
+         (declare (ignorable ,stream))
          (with-slots ,(all-combined-slots slots superclasses) ,object
            ,@(gen-read-slot-expressions slots stream))))))
 
@@ -201,7 +257,7 @@ stack) currently being read/written."
     (mapcar #'slot->binding slots)))
 
 (defun gen-slot-keywords (slots)
-  (loop for (name _) in slots append `(,(as-keyword name) ,name)))
+  (loop for (name) in slots append `(,(as-keyword name) ,name)))
 
 ;; -----------------------------------------------------------------------------
 ;; Usage:
@@ -218,23 +274,29 @@ stack) currently being read/written."
 ;;       (write-byte (char-code (char string i)) out))))
 ;; -----------------------------------------------------------------------------
 (defmacro define-binary-type (name (&rest args) &body spec)
+  (remember-binary-type-args name args)
   (ecase (length spec)
     ;; derived from an existing type
     (1
      (with-gensyms (type stream value)
-       (destructuring-bind (derived-from &rest derived-args) (ensure-list (first spec))
+       (dbind (supertype &rest supertype-args) (ensure-list (first spec))
+         (validate-binary-type-args supertype supertype-args `(define-binary-type ,name))
          `(progn
+            (eval-when (:compile-toplevel :load-toplevel :execute)
+              (remember-binary-type-args ',name ',args))
             (defmethod read-value ((,type (eql ',name)) ,stream &key ,@args)
-              (read-value ',derived-from ,stream ,@derived-args))
+              (read-value ',supertype ,stream ,@supertype-args))
             (defmethod write-value ((,type (eql ',name)) ,stream ,value &key ,@args)
-              (write-value ',derived-from ,stream ,value ,@derived-args))))))
+              (write-value ',supertype ,stream ,value ,@supertype-args))))))
     ;; specified with :reader and :writer methods
     (2
      (with-gensyms (type)
        `(progn
-          ,(destructuring-bind ((in) &body body) (rest (assoc :reader spec))
+          (eval-when (:compile-toplevel :load-toplevel :execute)
+            (remember-binary-type-args ',name ',args))
+          ,(dbind ((in) &body body) (rest (assoc :reader spec))
              `(defmethod read-value ((,type (eql ',name)) ,in &key ,@args)
                 ,@body))
-          ,(destructuring-bind ((out value) &body body) (rest (assoc :writer spec))
+          ,(dbind ((out value) &body body) (rest (assoc :writer spec))
              `(defmethod write-value ((,type (eql ',name)) ,out ,value &key ,@args)
                 ,@body)))))))

@@ -101,7 +101,7 @@ stack) currently being read/written."
 
   (defun warn-about-missing-binary-type-argument (type keyword context)
     (warn 'binary-type-style-warning
-          :format-control "~s is a required argument keyword for binary type ~s in ~s, but it was omitted."
+          :format-control "~s is a required argument for type ~s in ~s, but it was omitted."
           :format-arguments (list keyword type context)))
 
   (defun warn-about-forward-binary-type-reference (type context)
@@ -130,7 +130,7 @@ stack) currently being read/written."
     (setf (get type 'binary-type-args-known-p) t)
     (let-when ((pending-uses (get type 'binary-type-pending-uses)))
       (dolist (pending-use pending-uses)
-        (destructuring-bind (args context) pending-use
+        (dbind (args context) pending-use
           (validate-known-binary-type-args type args context)))
       (remprop type 'binary-type-pending-uses)))
 
@@ -148,7 +148,7 @@ stack) currently being read/written."
 
 (defmacro with-slot-parts ((name type args) slot &body body)
   (assert-all #'symbolp (list name type args))
-  `(destructuring-bind (,name (,type &rest ,args)) (normalize-slot ,slot)
+  `(dbind (,name (,type &rest ,args)) (normalize-slot ,slot)
      (validate-binary-type-args ,type ,args ,slot)
      ,@body))
 
@@ -279,24 +279,24 @@ stack) currently being read/written."
     ;; derived from an existing type
     (1
      (with-gensyms (type stream value)
-       (destructuring-bind (super-type &rest derived-args) (ensure-list (first spec))
-         (validate-binary-type-args super-type derived-args `(define-binary-type ,name))
+       (dbind (supertype &rest supertype-args) (ensure-list (first spec))
+         (validate-binary-type-args supertype supertype-args `(define-binary-type ,name))
          `(progn
             (eval-when (:compile-toplevel :load-toplevel :execute)
               (remember-binary-type-args ',name ',args))
             (defmethod read-value ((,type (eql ',name)) ,stream &key ,@args)
-              (read-value ',super-type ,stream ,@derived-args))
+              (read-value ',supertype ,stream ,@supertype-args))
             (defmethod write-value ((,type (eql ',name)) ,stream ,value &key ,@args)
-              (write-value ',super-type ,stream ,value ,@derived-args))))))
+              (write-value ',supertype ,stream ,value ,@supertype-args))))))
     ;; specified with :reader and :writer methods
     (2
      (with-gensyms (type)
        `(progn
           (eval-when (:compile-toplevel :load-toplevel :execute)
             (remember-binary-type-args ',name ',args))
-          ,(destructuring-bind ((in) &body body) (rest (assoc :reader spec))
+          ,(dbind ((in) &body body) (rest (assoc :reader spec))
              `(defmethod read-value ((,type (eql ',name)) ,in &key ,@args)
                 ,@body))
-          ,(destructuring-bind ((out value) &body body) (rest (assoc :writer spec))
+          ,(dbind ((out value) &body body) (rest (assoc :writer spec))
              `(defmethod write-value ((,type (eql ',name)) ,out ,value &key ,@args)
                 ,@body)))))))

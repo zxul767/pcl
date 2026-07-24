@@ -325,8 +325,8 @@
   (- (size (first-object-in-processing-stack))
      bytes-read))
 
-(defun encoded-string-length (string encoding terminated)
-  (let ((characters (+ (length string) (if terminated 1 0))))
+(defun encoded-string-length (string encoding terminated-p)
+  (let ((characters (+ (length string) (if terminated-p 1 0))))
     (* characters (ecase encoding (0 1) (1 2)))))
 
 (defun upto-null (string)

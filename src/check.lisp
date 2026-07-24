@@ -20,11 +20,9 @@
   (merge-pathnames filename (uiop:getcwd)))
 
 (defun get-warnings-filepath ()
-  "Returns the path of the warnings log file."
   (get-log-filepath "warnings.log"))
 
 (defun get-test-output-filepath ()
-  "Returns the path of the test errors log file."
   (get-log-filepath "test-output.log"))
 
 (defun get-local-system-names (dirpath)
@@ -39,13 +37,17 @@
     :test #'string=)
    #'string<))
 
+(defun find-system (name)
+  (let ((raise-error-p nil))
+    (asdf:find-system name raise-error-p)))
+
 (defun get-local-test-system-names (system-names)
-  "Returns the local secondary test systems corresponding to `system-names`."
+  "Returns the counterpart test systems for `system-names`."
   (sort
    (remove-duplicates
     (loop for system-name in system-names
           for test-system-name = (format nil "~a/tests" system-name)
-          when (asdf:find-system test-system-name nil)
+          when (find-system test-system-name)
             collect test-system-name)
     :test #'string=)
    #'string<))
@@ -84,7 +86,7 @@ It DOES NOT compile/load any such dependencies the way `(ql:quickload ...)` woul
   (if (member system-name seen :test #'string=)
       seen
       (let ((seen (cons system-name seen)) ;; track systems to avoid infinite loops
-            (asdf-system (asdf:find-system system-name nil))
+            (asdf-system (find-system system-name))
             (quicklisp-system (ql-dist:find-system system-name)))
         (cond
           (asdf-system
@@ -110,8 +112,8 @@ It DOES NOT compile/load any such dependencies the way `(ql:quickload ...)` woul
       ;; install the system itself...
       (setf seen (ensure-system-dependencies system-name seen))
       (let ((tests-system-name (format nil "~a/tests" system-name)))
-        (when (asdf:find-system tests-system-name nil)
-          ;; ...and its test system
+        ;; ...and its test system
+        (when (find-system tests-system-name)
           (setf seen (ensure-system-dependencies tests-system-name seen)))))))
 
 (defun detailed-output-p (verbosity)

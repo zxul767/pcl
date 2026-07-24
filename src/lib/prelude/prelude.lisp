@@ -8,6 +8,10 @@
 (indent:define-indentation
     with-labels ((&whole 4) &rest (&whole 2 &rest 2)))
 
+(defmacro dbind (lambda-list expression &body body)
+  `(destructuring-bind ,lambda-list ,expression
+     ,@body))
+
 (defun zip (&rest lists)
   (apply #'mapcar #'list lists))
 

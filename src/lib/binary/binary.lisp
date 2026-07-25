@@ -82,10 +82,11 @@ stack) currently being read/written."
   (write-object value stream))
 
 ;; -----------------------------------------------------------------------------
-;; General Helper Functions & Macros
+;; Compile-time arguments validation for binary type macros
 ;; -----------------------------------------------------------------------------
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (define-condition binary-type-style-warning (style-warning simple-condition) ())
+  (define-condition binary-type-style-warning
+      (style-warning simple-condition) ())
 
   (defun assert-all (predicate sequence)
     (dolist (item sequence)
@@ -113,17 +114,26 @@ stack) currently being read/written."
     (push (list args context) (get type 'binary-type-pending-uses)))
 
   (defun validate-known-binary-type-args (type args context)
-    (let ((allowed-keywords (binary-type-argument-keywords type))
-          (supplied-keywords
-            (loop for rest on args by #'cddr collect (first rest))))
-      (loop for keyword in supplied-keywords
-            unless (and (keywordp keyword)
-                        (member keyword allowed-keywords))
-              do (warn-about-binary-type-argument type keyword context))
-      (loop for keyword in allowed-keywords
-            unless (member keyword supplied-keywords)
-              do (warn-about-missing-binary-type-argument
-                  type keyword context))))
+    (with-labels
+        (let ((allowed-keywords (binary-type-argument-keywords type))
+              (supplied-keywords (get-supplied-keywords args)))
+          (warn-on-invalid-keywords supplied-keywords allowed-keywords)
+          (warn-on-missing-keywords supplied-keywords allowed-keywords))
+
+      (warn-on-invalid-keywords (supplied-keywords allowed-keywords)
+        (loop for keyword in supplied-keywords
+              unless (and (keywordp keyword)
+                          (member keyword allowed-keywords))
+                do (warn-about-binary-type-argument type keyword context)))
+
+      (warn-on-missing-keywords (supplied-keywords allowed-keywords)
+        (loop for keyword in allowed-keywords
+              unless (member keyword supplied-keywords)
+                do (warn-about-missing-binary-type-argument
+                    type keyword context)))))
+
+  (defun get-supplied-keywords (args)
+    (loop for rest on args by #'cddr collect (first rest)))
 
   (defun remember-binary-type-args (type args)
     (setf (get type 'binary-type-args) args)

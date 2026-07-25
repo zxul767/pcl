@@ -25,7 +25,7 @@
 (defun get-test-output-filepath ()
   (get-log-filepath "test-output.log"))
 
-(defun get-local-system-names (dirpath)
+(defun get-system-names (dirpath)
   ;; ASDF requires each primary system to have the same name as its .asd file.
   ;; Secondary systems, such as "functools/tests", are tested through their
   ;; primary system and therefore do not need to be discovered separately.
@@ -41,7 +41,7 @@
   (let ((raise-error-p nil))
     (asdf:find-system name raise-error-p)))
 
-(defun get-local-test-system-names (system-names)
+(defun get-test-system-names (system-names)
   "Returns the counterpart test systems for `system-names`."
   (sort
    (remove-duplicates
@@ -299,48 +299,46 @@ It DOES NOT compile/load any such dependencies the way `(ql:quickload ...)` woul
         (report-style-warnings (car style-warnings-count))
         (if (plusp (car style-warnings-count)) 1 result)))))
 
+(defun load-and-test-systems (system-names test-system-names &key verbosity)
+  (asdf/session:with-asdf-session (:override t)
+    (format t "~&Loading systems...~%")
+    (load-systems (append system-names test-system-names) verbosity)
+
+    (format t "~&Testing systems...~%")
+    (let* ((test-output-file (get-test-output-filepath))
+           (failures
+             (if (test-output-p verbosity)
+                 (run-system-tests system-names verbosity nil)
+                 (with-open-file (stream test-output-file
+                                         :direction :output
+                                         :if-exists :supersede
+                                         :if-does-not-exist :create)
+                   (run-system-tests system-names verbosity stream)))))
+      (when failures
+        (unless (test-output-p verbosity)
+          (report-test-output test-output-file))
+        (error "~d ASDF system~:p failed project checks." (length failures))))
+    (format t "~&ALL PROJECT CHECKS PASSED~%")))
+
 (defun run-tests-under (source-dirpath &key verbosity)
   "Runs all tests under `source-dirpath`.
 Returns 0 if there are no failures, and 1 if there are any failures."
   (handler-case
-      (let* ((system-names (get-local-system-names source-dirpath))
-             (test-system-names (get-local-test-system-names system-names))
-             (compiled-system-names (append system-names test-system-names)))
+      (let* ((system-names (get-system-names source-dirpath))
+             (test-system-names (get-test-system-names system-names))
+             (all-system-names (append system-names test-system-names)))
         ;; Install third-party dependencies before opening an ASDF session
         ;; so Quicklisp downloads do not invalidate its action plan.
         (format t "~&Ensuring dependencies...~%")
-        (ensure-all-dependencies system-names)
+        (ensure-all-dependencies all-system-names)
 
         ;; Force compilation of every discovered primary system before
         ;; loading/testing. Include test systems too so warm-cache runs do not
         ;; skip warnings in test code.
         (format t "~&Compiling systems...~%")
-        (compile-systems compiled-system-names verbosity)
+        (compile-systems all-system-names verbosity)
 
-        (asdf/session:with-asdf-session (:override t)
-          ;; Load every discovered primary system and its test systems. Using
-          ;; the same discovery as the test phase keeps new .asd files covered
-          ;; by CI and ensures test load-time warnings are not skipped on warm
-          ;; caches.
-          (format t "~&Loading systems...~%")
-          (load-systems compiled-system-names verbosity)
-          ;; Run all subsystems' tests.
-          (format t "~&Testing systems...~%")
-          (let* ((test-output-file (get-test-output-filepath))
-                 (failures
-                   (if (test-output-p verbosity)
-                       (run-system-tests system-names verbosity nil)
-                       (with-open-file (stream test-output-file
-                                               :direction :output
-                                               :if-exists :supersede
-                                               :if-does-not-exist :create)
-                         (run-system-tests system-names verbosity stream)))))
-            (when failures
-              (unless (test-output-p verbosity)
-                (report-test-output test-output-file))
-              (error "~d ASDF system~:p failed project checks."
-                     (length failures))))
-          (format t "~&ALL PROJECT CHECKS PASSED~%"))
+        (load-and-test-systems system-names test-system-names :verbosity verbosity)
         0) ;; success exit code
     (error (condition)
       (format *error-output* "~&PROJECT CHECKS FAILED: ~a~%" condition)
